@@ -1,0 +1,41 @@
+# Welfare Pride Intranet — Project TODO
+
+- [x] Publish the approved Welfare Pride logo and brand assets through permanent project storage.
+- [x] Apply Roboto to every UI element and use exact brand colors `#5A92C9` and `#D58240` throughout the application.
+- [x] Build a responsive branded dashboard shell with persistent sidebar, page header, mobile navigation, and footer.
+- [x] Build a branded sign-in screen for Microsoft Entra ID SSO with clear SAML 2.0, OAuth 2.0, OIDC, and silent sign-in configuration states.
+- [x] Implement secure server-managed authentication session boundaries and role-aware route protection.
+- [x] Design database tables for profiles, content, calendars, integration configuration, diagnostics, and backup audit records.
+- [x] Build employee self-service profile editing for bio, phone number, and profile photo.
+- [x] Build administrator profile override controls for editing any employee profile.
+- [x] Implement a Microsoft Graph adapter boundary for employee profile synchronization.
+- [x] Build an interactive organizational chart with manager/direct-report relationships, search, zoom, pan, and detail cards.
+- [x] Implement Microsoft Graph organizational data endpoints with graceful unconfigured and error states.
+- [x] Build a SharePoint-synchronized company holiday calendar with month navigation and holiday detail views.
+- [x] Build a birthday calendar that displays month and day only and never exposes birth years.
+- [x] Build announcements and events with list, calendar, category, detail, and administrator management views.
+- [x] Build a SharePoint-backed Human Resources document repository experience with search, filters, document metadata, and server-side SharePoint permission delegation.
+- [x] Build an Important Links grid for email, Microsoft 365 applications, corporate calendar, and configurable internal links.
+- [x] Build an About Welfare Pride page with reusable branded content sections.
+- [x] Build a Technology page with an allowlisted, sandboxed, secure iframe wrapper and Content Security Policy guidance.
+- [x] Build a Company Founders page with consistent biography, photo, milestone, and timeline templates.
+- [x] Build an administrator-only integration settings page for Microsoft Entra ID, Microsoft Graph, SharePoint, and cloud destinations.
+- [x] Encrypt sensitive saved credentials at rest and ensure secret values are never returned to the browser after submission.
+- [x] Build Microsoft Graph and SharePoint connection diagnostics with timestamped, sanitized results.
+- [x] Build a multi-cloud backup administration dashboard for SharePoint, OneDrive, Google Drive, AWS S3, Wasabi, Backblaze B2, and Azure Blob Storage.
+- [x] Build backup dry-run controls with checksum verification, destination-specific diagnostics, and an append-only application audit stream.
+- [x] Build guarded restore controls with confirmation, authorization checks, and audit history.
+- [x] Implement typed server APIs and database query helpers for all portal modules.
+- [x] Apply database migrations without destructive changes and verify schema alignment.
+- [x] Audit every registered data-backed route for its applicable loading, empty, success, validation, unconfigured, unauthorized, and failure states; document static-content exceptions.
+- [x] Apply global keyboard, focus, landmark, labeling, and reduced-motion controls and inspect the portal’s complex custom interactions.
+- [x] Validate the persistent shell at desktop, tablet, and mobile widths and record responsive coverage for every major route family.
+- [x] Add and update Vitest coverage for authorization, secret redaction, birthdays, secure embeds, diagnostics, and backup controls.
+- [x] Run TypeScript checks, unit tests, production build, log inspection, and final visual review.
+- [x] Document Microsoft Entra app registration, redirect URIs, API permissions, SharePoint configuration, credential setup, and production rollout steps.
+- [x] Create the final project checkpoint and deliver the working portal preview.
+- [x] Prevent concurrent default Important Links initialization and remove duplicate default-link rows created during first-load races.
+- [x] Add explicit frontend administrator route protection for all `/admin/*` pages and align cloud destination navigation with the integration settings experience.
+- [x] Implement append-only backup and restore audit events at the application data-access layer, retain separate mutable execution-state records, and document the managed TiDB trigger limitation.
+- [x] Restrict production Content Security Policy to configured Technology origins and remove development-only script allowances in production.
+- [x] Limit Microsoft Entra OIDC and SAML application sessions to a twelve-hour maximum age.

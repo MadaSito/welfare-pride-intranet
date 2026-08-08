@@ -8,6 +8,25 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { registerMicrosoftAuthRoutes } from "../auth/microsoft";
+import { scheduledBackupHandler } from "../scheduled/backup";
+import * as db from "../db";
+
+let frameOriginCache: { expiresAt: number; origins: string[] } = { expiresAt: 0, origins: [] };
+
+async function getTechnologyFrameOrigins() {
+  if (frameOriginCache.expiresAt > Date.now()) return frameOriginCache.origins;
+  try {
+    const embeds = await db.listActiveTechnologyEmbeds();
+    const origins = Array.from(new Set(embeds.map(item => {
+      try { return new URL(item.url).origin; } catch { return null; }
+    }).filter((origin): origin is string => Boolean(origin))));
+    frameOriginCache = { origins, expiresAt: Date.now() + 5 * 60_000 };
+    return origins;
+  } catch {
+    return frameOriginCache.origins;
+  }
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,11 +50,22 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.use(async (_req, res, next) => {
+    const frameOrigins = await getTechnologyFrameOrigins();
+    const developmentScripts = process.env.NODE_ENV === "development" ? " 'unsafe-inline' 'unsafe-eval'" : "";
+    const upgradeInsecureRequests = process.env.NODE_ENV === "production" ? "; upgrade-insecure-requests" : "";
+    res.setHeader("Content-Security-Policy", `default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${developmentScripts}; connect-src 'self' https: wss:; frame-src 'self' ${frameOrigins.join(" ")}; form-action 'self'; frame-ancestors 'self'${upgradeInsecureRequests}`);
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  });
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerMicrosoftAuthRoutes(app);
+  app.post("/api/scheduled/backup", scheduledBackupHandler);
   // tRPC API
   app.use(
     "/api/trpc",

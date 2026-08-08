@@ -1,5 +1,48 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786223001797,
+      "tag": "0000_nervous_grandmaster",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786223437810,
+      "tag": "0001_cultured_big_bertha",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786223803134,
+      "tag": "0002_glorious_fat_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786224875426,
+      "tag": "0003_tearful_young_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786225729503,
+      "tag": "0004_mighty_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786226212147,
+      "tag": "0005_real_warhawk",
+      "breakpoints": true
+    }
+  ]
 }

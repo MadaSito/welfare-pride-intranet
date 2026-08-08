@@ -1,33 +1,126 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, CalendarDays, CloudCog, FileText, Link2, Megaphone, Network, ShieldCheck, Users } from "lucide-react";
+import { useLocation } from "wouter";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
+const modules = [
+  { title: "Employee Directory", description: "Find colleagues and view approved profile details.", icon: Users, path: "/people", accent: "blue" },
+  { title: "Organization Chart", description: "Explore reporting relationships across Welfare Pride.", icon: Network, path: "/organization", accent: "orange" },
+  { title: "Human Resources", description: "Open policy and employee documents through SharePoint.", icon: FileText, path: "/hr", accent: "blue" },
+  { title: "Company Calendar", description: "See holidays, birthdays, events, and important dates.", icon: CalendarDays, path: "/calendars", accent: "orange" },
+] as const;
+
+const integrations = [
+  { label: "Microsoft Entra ID", description: "Identity and employee directory", status: "Configuration required" },
+  { label: "Microsoft Graph", description: "Profiles and organizational relationships", status: "Configuration required" },
+  { label: "SharePoint", description: "HR documents and company holidays", status: "Configuration required" },
+] as const;
+
 export default function Home() {
-  // The useAuth hook provides authentication state.
-  // To implement login/logout, call logout(), or start login from an event
-  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
-  // startLogin() during render (no href={startLogin()}) — it mints a one-time
-  // nonce cookie and must run only at the moment of navigation.
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
-
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const firstName = user?.name?.split(" ")[0] || "there";
+  const today = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="space-y-7">
+      <section className="relative overflow-hidden rounded-[28px] bg-[#5A92C9] p-6 text-white shadow-soft sm:p-8 lg:p-10">
+        <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[46px] border-white/10" />
+        <div className="absolute -bottom-20 right-32 h-48 w-48 rounded-full bg-[#D58240]/80" />
+        <div className="relative z-10 max-w-3xl">
+          <Badge className="border border-white/20 bg-white/12 text-white hover:bg-white/12">{today}</Badge>
+          <h1 className="mt-6 text-3xl font-bold tracking-[-0.045em] sm:text-4xl lg:text-[2.85rem]">Good to see you, {firstName}.</h1>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-white/85 sm:text-lg">
+            Your Welfare Pride workspace brings people, company updates, important dates, and Microsoft 365 resources together in one secure employee hub.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Button className="bg-white font-semibold text-[#376F9F] hover:bg-white/90" onClick={() => setLocation("/links")}>Open important links <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            <Button variant="outline" className="border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white" onClick={() => setLocation("/announcements")}>View announcements</Button>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="workspace-heading">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#D58240]">Employee workspace</p>
+            <h2 id="workspace-heading" className="mt-1 text-xl font-bold tracking-[-0.02em]">Start where you need to go</h2>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {modules.map(module => (
+            <button key={module.path} onClick={() => setLocation(module.path)} className="group rounded-2xl bg-white p-5 text-left shadow-soft ring-1 ring-border/60 hover:-translate-y-0.5 hover:ring-[#5A92C9]/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5A92C9]">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${module.accent === "blue" ? "bg-[#5A92C9]/10 text-[#5A92C9]" : "bg-[#D58240]/10 text-[#D58240]"}`}>
+                <module.icon className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-bold">{module.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{module.description}</p>
+              <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#376F9F]">Open module <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <Card className="border-0 shadow-soft">
+          <CardHeader className="flex-row items-start justify-between gap-4 border-b border-border/70">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#D58240]">Company pulse</p>
+              <CardTitle className="mt-2 text-xl">Latest from Welfare Pride</CardTitle>
+            </div>
+            <Megaphone className="h-5 w-5 text-[#5A92C9]" aria-hidden="true" />
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="rounded-2xl border border-dashed border-[#5A92C9]/30 bg-[#5A92C9]/5 p-6 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#5A92C9] shadow-sm"><Megaphone className="h-5 w-5" /></div>
+              <h3 className="mt-4 font-bold">No published announcements yet</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Published company updates will appear here. Administrators can create and schedule announcements from the Announcements workspace.</p>
+              <Button variant="link" className="mt-2 text-[#376F9F]" onClick={() => setLocation("/announcements")}>Open announcements <ArrowRight className="ml-1.5 h-4 w-4" /></Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-soft">
+          <CardHeader className="border-b border-border/70">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#D58240]">System readiness</p>
+                <CardTitle className="mt-2 text-xl">Microsoft 365 connections</CardTitle>
+              </div>
+              <CloudCog className="h-5 w-5 text-[#5A92C9]" aria-hidden="true" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1 p-4">
+            {integrations.map(integration => (
+              <div key={integration.label} className="flex items-center justify-between gap-4 rounded-xl px-3 py-3 hover:bg-muted/60">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{integration.label}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{integration.description}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0 border-[#D58240]/25 bg-[#D58240]/5 text-[10px] text-[#9A5727]">Setup needed</Badge>
+              </div>
+            ))}
+            {user?.role === "admin" ? <Button variant="ghost" className="mt-2 w-full justify-between text-[#376F9F]" onClick={() => setLocation("/admin/integrations")}>Configure integrations <ArrowRight className="h-4 w-4" /></Button> : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <button onClick={() => setLocation("/events")} className="flex items-center gap-4 rounded-2xl border border-border bg-white p-5 text-left shadow-sm hover:border-[#5A92C9]/35">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5A92C9]/10 text-[#5A92C9]"><CalendarDays className="h-5 w-5" /></div>
+          <div><p className="font-semibold">Upcoming events</p><p className="mt-1 text-xs text-muted-foreground">No published events</p></div>
+        </button>
+        <button onClick={() => setLocation("/links")} className="flex items-center gap-4 rounded-2xl border border-border bg-white p-5 text-left shadow-sm hover:border-[#5A92C9]/35">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#D58240]/10 text-[#D58240]"><Link2 className="h-5 w-5" /></div>
+          <div><p className="font-semibold">Microsoft 365 tools</p><p className="mt-1 text-xs text-muted-foreground">Email, calendar, and apps</p></div>
+        </button>
+        <div className="flex items-center gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5A92C9]/10 text-[#5A92C9]"><ShieldCheck className="h-5 w-5" /></div>
+          <div><p className="font-semibold">Secure employee access</p><p className="mt-1 text-xs text-muted-foreground">Protected application session</p></div>
+        </div>
+      </section>
     </div>
   );
 }

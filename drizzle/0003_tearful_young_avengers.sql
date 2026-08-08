@@ -1,0 +1,1 @@
+ALTER TABLE `important_links` ADD CONSTRAINT `important_links_title_unique` UNIQUE(`title`);
