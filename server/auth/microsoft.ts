@@ -3,19 +3,16 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { SAML, ValidateInResponseTo, type Profile } from "@node-saml/node-saml";
-import { COOKIE_NAME } from "../../shared/const";
 import * as db from "../db";
 import { decryptJson, encryptJson } from "../security/encryption";
 import type { MicrosoftPublicConfig, MicrosoftSecrets } from "../integrations/contracts";
-import { getSessionCookieOptions } from "../_core/cookies";
-import { sdk } from "../_core/sdk";
+import { issueAppSession } from "./session";
 import { DatabaseSamlCacheProvider } from "./samlCache";
 
 const STATE_COOKIE = "__Host-wp_entra_state";
 const VERIFIER_COOKIE = "__Host-wp_entra_verifier";
 const NONCE_COOKIE = "__Host-wp_entra_nonce";
 const CORRELATION_MAX_AGE_MS = 10 * 60 * 1000;
-const ENTRA_SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 type MicrosoftTokenResponse = {
   access_token: string;
@@ -187,8 +184,7 @@ export function registerMicrosoftAuthRoutes(app: Express) {
         officeLocation: profileValue(profile, ["officeLocation"]),
         phone: profileValue(profile, ["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/mobilephone", "mobilePhone"]),
       });
-      const sessionToken = await sdk.createSessionToken(openId, { name: displayName, expiresInMs: ENTRA_SESSION_MAX_AGE_MS });
-      res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(req), maxAge: ENTRA_SESSION_MAX_AGE_MS });
+      await issueAppSession(req, res, user.id);
       return res.redirect(302, "/");
     } catch (error) {
       console.error("[MicrosoftSAML] Assertion validation failed", error instanceof Error ? error.message : "Unknown error");
@@ -329,8 +325,7 @@ export function registerMicrosoftAuthRoutes(app: Express) {
         accessTokenExpiresAt: new Date(Date.now() + tokenSet.expires_in * 1000),
       });
 
-      const sessionToken = await sdk.createSessionToken(openId, { name: displayName, expiresInMs: ENTRA_SESSION_MAX_AGE_MS });
-      res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(req), maxAge: ENTRA_SESSION_MAX_AGE_MS });
+      await issueAppSession(req, res, user.id);
       clearCorrelationCookies(res);
       res.redirect(302, "/");
     } catch (error) {

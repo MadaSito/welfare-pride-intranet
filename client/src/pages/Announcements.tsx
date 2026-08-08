@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { Archive, ArrowRight, CalendarClock, Megaphone, Pencil, Pin, Plus, Search, ShieldAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type AnnouncementForm = {
@@ -50,6 +50,15 @@ export default function Announcements() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const items = isAdmin ? (adminList.data || []) : (published.data || []);
   const detail = items.find(item => item.id === detailId) || null;
+  const deepLinkedAnnouncementId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const value = Number(new URLSearchParams(window.location.search).get("announcement"));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }, []);
+
+  useEffect(() => {
+    if (deepLinkedAnnouncementId && items.some(item => item.id === deepLinkedAnnouncementId)) setDetailId(deepLinkedAnnouncementId);
+  }, [deepLinkedAnnouncementId, items]);
 
   const create = trpc.announcements.create.useMutation({
     onSuccess: async () => {

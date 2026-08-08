@@ -2,8 +2,10 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, CalendarDays, CloudCog, FileText, Link2, Megaphone, Network, ShieldCheck, Users } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { ArrowRight, BookmarkCheck, CalendarClock, CalendarDays, CloudCog, ExternalLink, FileText, Link2, Loader2, Megaphone, Network, ShieldCheck, Trash2, Users } from "lucide-react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 
 const modules = [
   { title: "Employee Directory", description: "Find colleagues and view approved profile details.", icon: Users, path: "/people", accent: "blue" },
@@ -21,6 +23,15 @@ const integrations = [
 export default function Home() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const pins = trpc.dashboardPins.list.useQuery();
+  const utils = trpc.useUtils();
+  const removePin = trpc.dashboardPins.remove.useMutation({
+    onSuccess: async () => {
+      await utils.dashboardPins.list.invalidate();
+      toast.success("Item removed from your dashboard.");
+    },
+    onError: error => toast.error(error.message),
+  });
   const firstName = user?.name?.split(" ")[0] || "there";
   const today = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
@@ -40,6 +51,31 @@ export default function Home() {
             <Button variant="outline" className="border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white" onClick={() => setLocation("/announcements")}>View announcements</Button>
           </div>
         </div>
+      </section>
+
+      <section aria-labelledby="personalized-dashboard-heading">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#D58240]">Personalized dashboard</p>
+            <h2 id="personalized-dashboard-heading" className="mt-1 text-xl font-bold tracking-[-0.02em]">Your pinned resources and events</h2>
+          </div>
+          <p className="max-w-xl text-sm text-muted-foreground">Pin items from Human Resources or Events. Your choices are private to your account.</p>
+        </div>
+
+        {pins.isLoading ? <div className="grid gap-4 lg:grid-cols-2"><div className="h-52 animate-pulse rounded-2xl bg-white shadow-soft" /><div className="h-52 animate-pulse rounded-2xl bg-white shadow-soft" /></div> : null}
+        {pins.error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Your personalized dashboard could not be loaded.</div> : null}
+        {pins.data ? <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-0 shadow-soft">
+            <CardHeader className="flex-row items-center justify-between border-b border-border/70"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5A92C9]">Quick access</p><CardTitle className="mt-1 text-lg">Pinned HR resources</CardTitle></div><FileText className="h-5 w-5 text-[#5A92C9]" /></CardHeader>
+            <CardContent className="p-4">{pins.data.documents.length ? <div className="space-y-2">{pins.data.documents.map(item => <div key={item.id} className="flex items-center gap-3 rounded-xl border border-border/70 p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#5A92C9]/10 text-[#5A92C9]"><BookmarkCheck className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{item.category}</p></div><Button asChild variant="ghost" size="icon" className="h-8 w-8 text-[#376F9F]"><a href={item.webUrl} target="_blank" rel="noreferrer" aria-label={`Open ${item.name}`}><ExternalLink className="h-4 w-4" /></a></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label={`Unpin ${item.name}`} onClick={() => removePin.mutate({ pinType: "hr_document", targetKey: item.id })} disabled={removePin.isPending}>{removePin.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div>)}</div> : <div className="rounded-xl border border-dashed border-[#5A92C9]/25 bg-[#5A92C9]/5 p-6 text-center"><FileText className="mx-auto h-6 w-6 text-[#5A92C9]" /><p className="mt-3 text-sm font-semibold">No HR resources pinned</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Pin frequently used policies, forms, and employee resources from the HR library.</p><Button variant="link" className="mt-1 text-[#376F9F]" onClick={() => setLocation("/hr")}>Browse HR resources</Button></div>}</CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-soft">
+            <CardHeader className="flex-row items-center justify-between border-b border-border/70"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#D58240]">Coming up</p><CardTitle className="mt-1 text-lg">Pinned events</CardTitle></div><CalendarClock className="h-5 w-5 text-[#D58240]" /></CardHeader>
+            <CardContent className="p-4">{pins.data.events.length ? <div className="space-y-2">{pins.data.events.map(item => <div key={item.id} className="flex items-center gap-3 rounded-xl border border-border/70 p-3"><div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-[#D58240]/10 text-[#9A5727]"><span className="text-[9px] font-bold uppercase">{new Date(item.startAt).toLocaleString(undefined, { month: "short" })}</span><span className="text-sm font-bold leading-none">{new Date(item.startAt).getDate()}</span></div><button className="min-w-0 flex-1 text-left" onClick={() => setLocation(`/events?event=${item.id}`)}><span className="block truncate text-sm font-semibold">{item.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{new Date(item.startAt).toLocaleString()}</span></button><Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label={`Unpin ${item.title}`} onClick={() => removePin.mutate({ pinType: "event", targetKey: String(item.id) })} disabled={removePin.isPending}>{removePin.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div>)}</div> : <div className="rounded-xl border border-dashed border-[#D58240]/25 bg-[#D58240]/5 p-6 text-center"><CalendarDays className="mx-auto h-6 w-6 text-[#D58240]" /><p className="mt-3 text-sm font-semibold">No upcoming events pinned</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep important meetings, celebrations, and learning sessions close at hand.</p><Button variant="link" className="mt-1 text-[#9A5727]" onClick={() => setLocation("/events")}>Browse events</Button></div>}</CardContent>
+          </Card>
+        </div> : null}
+        {pins.data?.unavailableCount ? <p className="mt-3 text-xs text-muted-foreground">{pins.data.unavailableCount} pinned item{pins.data.unavailableCount === 1 ? " is" : "s are"} hidden because it expired, was removed, or is no longer authorized.</p> : null}
       </section>
 
       <section aria-labelledby="workspace-heading">

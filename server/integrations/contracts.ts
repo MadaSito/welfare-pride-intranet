@@ -28,6 +28,16 @@ export type MicrosoftSecrets = {
   samlCertificate?: string;
 };
 
+export type AiPublicConfig = {
+  providerName?: string;
+  baseUrl?: string;
+  model?: string;
+};
+
+export type AiSecrets = {
+  apiKey?: string;
+};
+
 export type BackupPublicConfig = {
   clientId?: string;
   endpoint?: string;

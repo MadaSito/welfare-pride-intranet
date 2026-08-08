@@ -1,51 +1,64 @@
 # Welfare Pride Employee Intranet
 
-Welfare Pride is a branded full-stack employee portal for Microsoft 365 identity, company communication, people discovery, SharePoint-authorized resources, and multi-cloud backup administration.
+Welfare Pride is a standalone, self-hosted employee intranet built with React, Express, tRPC, Drizzle ORM, and MySQL. It is designed to run on a protected Hostinger subdomain beside an existing WordPress site, without requiring WordPress or a proprietary application platform at runtime.
 
-## Technology
+## Core capabilities
 
-The application uses React 19, TypeScript, Tailwind CSS 4, Wouter, tRPC 11, Express, Drizzle ORM, MySQL/TiDB, Microsoft Entra OIDC/OAuth 2.0 and SAML 2.0, Microsoft Graph, SharePoint, and S3-backed file storage. It is designed for the managed Autoscale runtime and does not depend on a permanently running local worker.
+The portal includes local first-owner setup, local administrator login, optional Microsoft Entra OIDC and SAML sign-in, employee profiles, a live organizational chart, announcements, events, holidays, birthdays without birth years, SharePoint-authorized HR documents, company pages, secure Technology embeds, multi-cloud backup administration, employee dashboard pins, unified search, and a provider-neutral cited AI assistant.
 
-## Local validation
+| Boundary | Implementation |
+| --- | --- |
+| Authentication | Revocable HTTP-only database sessions; local owner account; optional Entra OIDC and SAML |
+| Authorization | Typed protected and administrator procedures; SharePoint remains the HR document permission authority |
+| Secrets | AES-256-GCM encryption using `JWT_SECRET`; plaintext saved secrets are never returned to the browser |
+| Storage | S3-compatible object storage or a persistent local VPS volume |
+| Scheduling | Authenticated cron dispatcher for Hostinger cron or the included VPS scheduler |
+| AI | Configurable OpenAI-compatible endpoint; published-content grounding; delegated SharePoint retrieval; cited answers |
+
+## Local development
+
+Copy `deploy/hostinger/environment.template` to a local `.env`, replace all placeholder values, and run:
 
 ```bash
-pnpm test
+corepack enable
+pnpm install
+pnpm db:migrate
+pnpm dev
+```
+
+Set `DATABASE_URL`, `JWT_SECRET`, and `INITIAL_SETUP_TOKEN` before opening the application. Development defaults to local file storage under `data/uploads`.
+
+## Production
+
+Read [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) for Hostinger managed Node.js, VPS Docker, first-login, DNS, TLS, cron, backup, and WordPress-link instructions. The included installer supports:
+
+```bash
+deploy/hostinger/install.sh --mode docker --domain intranet.example.org
+deploy/hostinger/install.sh --mode native
+deploy/hostinger/install.sh --mode managed
+```
+
+## Validation
+
+```bash
 pnpm check
+pnpm test
 pnpm build
 ```
 
-The final validation baseline is **15 passing tests across 6 Vitest files**, a clean TypeScript check, and a successful production build.
-
-## Major modules
-
-| Area | Included capabilities |
-| --- | --- |
-| Authentication | Branded OIDC, OAuth 2.0, SAML 2.0, silent Microsoft session reuse, secure application sessions |
-| People | Employee self-service profile, administrator override, photo storage, directory search, organization chart |
-| Company communication | Announcements, events, holiday and birthday calendars with birth-year privacy |
-| Resources | Important Links, SharePoint-authorized HR repository, secure Technology embeds |
-| Company pages | About Welfare Pride, founders, biographies, and milestone timeline |
-| Administration | Encrypted integration settings, sanitized diagnostics, role-protected routes |
-| Recovery | Multi-cloud connection tests, dry runs, retained manifests, checksum verification, restore validation, schedules, audit events |
+Database schema changes must be generated with `pnpm db:generate`, reviewed in `drizzle/`, and applied with `pnpm db:migrate`.
 
 ## Documentation
 
 | Document | Purpose |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Trust boundaries, module architecture, and security decisions |
-| [`docs/production-rollout-guide.md`](docs/production-rollout-guide.md) | Entra, SAML, Graph, SharePoint, cloud provider, and launch instructions |
-| [`docs/api-coverage-matrix.md`](docs/api-coverage-matrix.md) | Typed API and persistence coverage by portal module |
-| [`docs/quality-assurance-matrix.md`](docs/quality-assurance-matrix.md) | Route-level state, accessibility, and responsive QA evidence |
-| [`docs/technology-embed-security.md`](docs/technology-embed-security.md) | Secure iframe and Content Security Policy guidance |
-| [`docs/backup-audit-and-recovery.md`](docs/backup-audit-and-recovery.md) | Backup control plane, audit behavior, and recovery boundaries |
-| [`todo.md`](todo.md) | Full implementation history and completion record |
-
-## Production setup
-
-Publish the final project checkpoint from the project interface, record the canonical HTTPS origin, and follow [`docs/production-rollout-guide.md`](docs/production-rollout-guide.md). External integrations remain unconfigured until an authorized Welfare Pride administrator enters the tenant and provider credentials through the encrypted Integration Settings and Backup Center interfaces.
-
-SharePoint remains the authorization boundary for HR documents. The portal uses the signed-in employee’s delegated Microsoft token and does not recreate SharePoint ACLs in the application database.
+| [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) | Self-hosting, WordPress connection, and first login |
+| [`docs/standalone-release-validation.md`](docs/standalone-release-validation.md) | Test, build, audit, production-smoke, and deployment validation evidence |
+| [`docs/portable-architecture.md`](docs/portable-architecture.md) | Runtime and security architecture |
+| [`docs/production-rollout-guide.md`](docs/production-rollout-guide.md) | Microsoft Entra, Graph, SharePoint, and cloud setup |
+| [`docs/technology-embed-security.md`](docs/technology-embed-security.md) | Secure iframe allowlisting and CSP guidance |
+| [`docs/backup-audit-and-recovery.md`](docs/backup-audit-and-recovery.md) | Backup and restore controls |
 
 ## Brand system
 
-All interface typography uses **Roboto**. The exact primary colors are Welfare Pride blue **`#5A92C9`** and orange **`#D58240`**. Approved logo assets are served from permanent project storage and are documented in [`docs/brand-assets.md`](docs/brand-assets.md).
+All interface typography uses **Roboto**. The exact primary colors are Welfare Pride blue **`#5A92C9`** and orange **`#D58240`**. Approved logo assets are bundled in the source tree.

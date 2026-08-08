@@ -4,7 +4,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { Streamdown } from "streamdown";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -57,6 +56,9 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+
+  /** Source citations aligned to the original messages array. */
+  messageSources?: Array<Array<{ id: string; title: string; url: string; type: string }> | undefined>;
 };
 
 /**
@@ -64,7 +66,7 @@ export type AIChatBoxProps = {
  *
  * Features:
  * - Matches server-side Message interface for seamless integration
- * - Markdown rendering with Streamdown
+ * - Safe plain-text rendering with separate source links
  * - Auto-scrolls to latest message
  * - Loading states
  * - Uses global theme colors from index.css
@@ -119,6 +121,7 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Start a conversation with AI",
   suggestedPrompts,
+  messageSources,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -127,7 +130,7 @@ export function AIChatBox({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Filter out system messages
-  const displayMessages = messages.filter((msg) => msg.role !== "system");
+  const displayMessages = messages.map((message, originalIndex) => ({ message, originalIndex })).filter(({ message }) => message.role !== "system");
 
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);
@@ -225,7 +228,7 @@ export function AIChatBox({
         ) : (
           <ScrollArea className="h-full">
             <div className="flex flex-col space-y-4 p-4">
-              {displayMessages.map((message, index) => {
+              {displayMessages.map(({ message, originalIndex }, index) => {
                 // Apply min-height to last message only if NOT loading (when loading, the loading indicator gets it)
                 const isLastMessage = index === displayMessages.length - 1;
                 const shouldApplyMinHeight =
@@ -261,8 +264,9 @@ export function AIChatBox({
                       )}
                     >
                       {message.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <Streamdown>{message.content}</Streamdown>
+                        <div>
+                          <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+                          {messageSources?.[originalIndex]?.length ? <div className="mt-3 border-t border-border/70 pt-3"><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Sources</p><div className="flex flex-wrap gap-2">{messageSources[originalIndex]?.map(source => <a key={`${source.id}:${source.url}`} href={source.url} target={source.url.startsWith("http") ? "_blank" : undefined} rel={source.url.startsWith("http") ? "noreferrer" : undefined} className="rounded-full border border-[#5A92C9]/25 bg-white px-2.5 py-1 text-[11px] font-medium text-[#376F9F] hover:bg-[#5A92C9]/5">[{source.id}] {source.title}</a>)}</div></div> : null}
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">

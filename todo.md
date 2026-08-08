@@ -39,3 +39,34 @@
 - [x] Implement append-only backup and restore audit events at the application data-access layer, retain separate mutable execution-state records, and document the managed TiDB trigger limitation.
 - [x] Restrict production Content Security Policy to configured Technology origins and remove development-only script allowances in production.
 - [x] Limit Microsoft Entra OIDC and SAML application sessions to a twelve-hour maximum age.
+- [x] Audit and remove every proprietary managed-platform runtime, authentication, storage, scheduling, analytics, AI, asset URL, and deployment dependency from active production code.
+- [x] Fix first-run access with a secure local owner setup flow that works before Microsoft Entra is configured.
+- [x] Add local administrator sign-in with strong password hashing, secure sessions, rate limiting, and MFA-ready account fields.
+- [x] Preserve Microsoft Entra OIDC and SAML sign-in as portable, optional enterprise authentication methods.
+- [x] Replace managed file storage with a configurable S3-compatible storage adapter and local development fallback.
+- [x] Replace managed heartbeat scheduling with a portable scheduler suitable for Hostinger VPS or cron-triggered HTTPS callbacks.
+- [x] Remove managed analytics, hosted OAuth portal URLs, proprietary service APIs, storage URLs, and platform-branded deployment assumptions from production code.
+- [x] Add a global top-navigation search experience for employees, announcements, and employee-authorized HR documents.
+- [x] Add a typed unified-search server API with query limits, source labels, result links, and SharePoint permission preservation.
+- [x] Let employees pin and unpin frequently used HR resources and upcoming events on their own dashboard.
+- [x] Persist dashboard pins per employee and prevent one employee from reading or changing another employee’s pins.
+- [x] Add a provider-neutral AI assistant for approved company content and employee-authorized HR resources.
+- [x] Ground assistant answers in retrieved portal content, show source links, and prevent cross-user SharePoint data leakage.
+- [x] Create portable environment configuration, database migration, backup, and installation assets for Hostinger self-hosting.
+- [x] Provide a Hostinger architecture that keeps WordPress on the main site and the Node.js intranet on a protected subdomain.
+- [x] Document Hostinger Web/Cloud/VPS compatibility and provide a VPS deployment path when the WordPress plan cannot run a persistent Node.js service.
+- [x] Add Vitest coverage for local setup access, local authentication, unified search authorization, dashboard-pin ownership, and AI retrieval boundaries.
+- [x] Validate the portable release with dependency scans, tests, type checks, production build, responsive screenshots, and runtime logs.
+- [x] Save and deliver the updated portable checkpoint with first-login and Hostinger deployment instructions.
+- [x] Fix the published first-run access blocker so the project owner can securely enter Integration Settings before Microsoft Entra is configured.
+- [x] Add clear first-login guidance and prevent a setup-access dead end on the published sign-in screen.
+- [x] Add a global top-navigation search experience for employees, announcements, and employee-authorized HR documents.
+- [x] Add a typed unified-search server API with query limits, source labels, result links, and SharePoint permission preservation.
+- [x] Let employees pin and unpin frequently used HR resources and upcoming events on their own dashboard.
+- [x] Persist dashboard pins per employee and prevent one employee from reading or changing another employee’s pins.
+- [x] Add a permission-aware AI assistant for approved company content and employee-authorized HR resources.
+- [x] Ground assistant answers in retrieved portal content, show source links, and prevent cross-user SharePoint data leakage.
+- [x] Add Vitest coverage for setup access, unified search authorization, dashboard-pin ownership, and AI retrieval boundaries.
+- [x] Validate the new features at desktop and mobile breakpoints and inspect production runtime logs.
+- [x] Document the standalone runtime boundaries and realistic Hostinger and WordPress integration paths.
+- [x] Save and deliver an updated project checkpoint with practical first-login and deployment instructions.

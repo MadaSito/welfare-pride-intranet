@@ -1,6 +1,6 @@
 # Welfare Pride Intranet Production Rollout Guide
 
-**Author:** Manus AI  
+**Author:** Welfare Pride Technical Team  
 **Prepared for:** Welfare Pride  
 **Application:** Welfare Pride employee intranet
 
@@ -8,7 +8,7 @@
 
 The portal is ready for a controlled production rollout after an authorized Welfare Pride administrator completes the external service configuration. The code, schema, and branded interface are implemented; Microsoft Entra, SharePoint, and cloud providers remain intentionally unconfigured because tenant identifiers, credentials, site identifiers, and storage accounts must come from Welfare Pride.
 
-Publish the project from the Manus project interface after reviewing the final checkpoint. Record the resulting production origin as `PORTAL_BASE_URL`. Use one canonical HTTPS origin for production and avoid carrying development callbacks into the production Entra registration. Microsoft requires redirect URIs to match registered values and recommends separating development and production registrations; production web callbacks should use HTTPS.[1]
+Deploy the reviewed release to the protected Hostinger subdomain by following [`hostinger-deployment.md`](hostinger-deployment.md). Record the resulting production origin as `PORTAL_BASE_URL`. Use one canonical HTTPS origin for production and avoid carrying development callbacks into the production Entra registration. Microsoft requires redirect URIs to match registered values and recommends separating development and production registrations; production web callbacks should use HTTPS.[1]
 
 | Portal endpoint | Production value |
 | --- | --- |
@@ -16,7 +16,7 @@ Publish the project from the Manus project interface after reviewing the final c
 | SAML assertion consumer service | `PORTAL_BASE_URL/api/auth/microsoft/saml/acs` |
 | SAML service-provider metadata | `PORTAL_BASE_URL/api/auth/microsoft/saml/metadata` |
 | Authentication readiness | `PORTAL_BASE_URL/api/auth/microsoft/status` |
-| Scheduled backup callback | `PORTAL_BASE_URL/api/scheduled/backup` |
+| Scheduled backup dispatcher | `PORTAL_BASE_URL/api/cron/dispatch` |
 
 ## 2. Microsoft Entra OIDC and OAuth 2.0 registration
 
@@ -113,7 +113,7 @@ Restore controls intentionally perform checksum-verified retrieval validation an
 
 ## 9. Administrator and content setup
 
-The project owner is provisioned as an administrator. Promote additional administrators only through controlled user-role management and test the standard-user denial screen for every `/admin/*` route. The server independently enforces the administrator role for all sensitive procedures.
+Create the first local owner account with `INITIAL_SETUP_TOKEN`, then remove that token from the runtime environment. Promote additional administrators only through controlled user-role management and test the standard-user denial screen for every `/admin/*` route. The server independently enforces the administrator role for all sensitive procedures.
 
 Before launch, Welfare Pride administrators should publish approved About content, founder biographies and milestones, announcements, events, Technology links, and employee-facing Important Links. The portal intentionally does not fabricate company history, founder details, or employee-generated testimonials.
 

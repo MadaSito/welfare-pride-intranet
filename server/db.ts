@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   employeeProfiles,
   announcements,
   companyEvents,
+  dashboardPins,
   holidays,
   technologyEmbeds,
   importantLinks,
@@ -17,11 +18,12 @@ import {
   backupRuns,
   restoreRuns,
   operationAuditEvents,
+  appSessions,
+  localCredentials,
   microsoftOauthSessions,
   samlRequestCorrelations,
   users,
 } from "../drizzle/schema";
-import { ENV } from './_core/env';
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -76,9 +78,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
     }
 
     if (!values.lastSignedIn) {
@@ -108,6 +107,111 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function hasLocalCredential() {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: localCredentials.id }).from(localCredentials).limit(1);
+  return result.length > 0;
+}
+
+export async function createInitialLocalAdmin(input: {
+  openId: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.transaction(async tx => {
+    const existing = await tx.select({ id: localCredentials.id }).from(localCredentials).limit(1);
+    if (existing.length) throw new Error("Owner setup is already complete");
+    await tx.insert(users).values({
+      openId: input.openId,
+      name: input.name,
+      email: input.email,
+      loginMethod: "local",
+      role: "admin",
+      lastSignedIn: new Date(),
+    });
+    const [user] = await tx.select().from(users).where(eq(users.openId, input.openId)).limit(1);
+    if (!user) throw new Error("Owner account could not be created");
+    await tx.insert(localCredentials).values({
+      userId: user.id,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      passwordSalt: input.passwordSalt,
+    });
+    await tx.insert(employeeProfiles).values({
+      userId: user.id,
+      displayName: input.name,
+      email: input.email,
+      source: "local",
+    });
+    return user;
+  });
+}
+
+export async function getLocalCredentialByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [result] = await db
+    .select({ credential: localCredentials, user: users })
+    .from(localCredentials)
+    .innerJoin(users, eq(localCredentials.userId, users.id))
+    .where(eq(localCredentials.email, email.toLowerCase()))
+    .limit(1);
+  return result;
+}
+
+export async function recordLocalLoginFailure(credentialId: number, failedAttempts: number, lockedUntil: Date | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({ failedAttempts, lockedUntil }).where(eq(localCredentials.id, credentialId));
+}
+
+export async function clearLocalLoginFailures(credentialId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({ failedAttempts: 0, lockedUntil: null }).where(eq(localCredentials.id, credentialId));
+}
+
+export async function createAppSessionRecord(input: {
+  userId: number;
+  tokenHash: string;
+  expiresAt: Date;
+  userAgentHash?: string | null;
+  ipHash?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(appSessions).values(input);
+}
+
+export async function getActiveAppSession(tokenHash: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [result] = await db
+    .select({ session: appSessions, user: users })
+    .from(appSessions)
+    .innerJoin(users, eq(appSessions.userId, users.id))
+    .where(and(eq(appSessions.tokenHash, tokenHash), isNull(appSessions.revokedAt), gt(appSessions.expiresAt, new Date())))
+    .limit(1);
+  return result;
+}
+
+export async function touchAppSession(sessionId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(appSessions).set({ lastSeenAt: new Date() }).where(eq(appSessions.id, sessionId));
+}
+
+export async function revokeAppSession(tokenHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(appSessions).set({ revokedAt: new Date() }).where(eq(appSessions.tokenHash, tokenHash));
 }
 
 export async function getIntegrationSettingByProvider(provider: string) {
@@ -187,12 +291,6 @@ export async function getBackupDestinationById(id: number) {
   return (await db.select().from(backupDestinations).where(eq(backupDestinations.id, id)).limit(1))[0];
 }
 
-export async function getBackupDestinationByTaskUid(taskUid: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db.select().from(backupDestinations).where(eq(backupDestinations.scheduleCronTaskUid, taskUid)).limit(1))[0];
-}
-
 export async function upsertBackupDestination(input: {
   provider: string;
   displayName: string;
@@ -225,10 +323,34 @@ export async function updateBackupDestinationConnectionStatus(
   await db.update(backupDestinations).set({ status, lastTestedAt: new Date() }).where(eq(backupDestinations.id, id));
 }
 
-export async function setBackupDestinationScheduleTaskUid(id: number, scheduleCronTaskUid: string | null) {
+export async function setBackupDestinationSchedule(id: number, scheduleCron: string, enabled = true) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(backupDestinations).set({ scheduleCronTaskUid }).where(eq(backupDestinations.id, id));
+  await db.update(backupDestinations).set({ scheduleCron, scheduleEnabled: enabled, scheduleCronTaskUid: null }).where(eq(backupDestinations.id, id));
+}
+
+export async function setBackupDestinationScheduleEnabled(id: number, scheduleEnabled: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(backupDestinations).set({ scheduleEnabled }).where(eq(backupDestinations.id, id));
+}
+
+export async function clearBackupDestinationSchedule(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(backupDestinations).set({ scheduleCron: null, scheduleEnabled: false, scheduleCronTaskUid: null }).where(eq(backupDestinations.id, id));
+}
+
+export async function listEnabledBackupSchedules() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(backupDestinations).where(and(eq(backupDestinations.isEnabled, true), eq(backupDestinations.scheduleEnabled, true)));
+}
+
+export async function markBackupScheduleDispatched(id: number, dispatchedAt: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(backupDestinations).set({ lastScheduledDispatchAt: dispatchedAt }).where(eq(backupDestinations.id, id));
 }
 
 export async function createBackupRun(input: typeof backupRuns.$inferInsert) {
@@ -450,6 +572,35 @@ export async function listEmployeeProfiles() {
     .orderBy(asc(employeeProfiles.displayName));
 }
 
+export async function searchEmployeeProfiles(query: string, limit = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  const escaped = query.replace(/[\\%_]/g, value => `\\${value}`);
+  const pattern = `%${escaped}%`;
+  return db
+    .select({
+      id: employeeProfiles.id,
+      userId: employeeProfiles.userId,
+      displayName: employeeProfiles.displayName,
+      email: employeeProfiles.email,
+      jobTitle: employeeProfiles.jobTitle,
+      department: employeeProfiles.department,
+      photoUrl: employeeProfiles.photoUrl,
+    })
+    .from(employeeProfiles)
+    .where(and(
+      eq(employeeProfiles.isActive, true),
+      or(
+        like(employeeProfiles.displayName, pattern),
+        like(employeeProfiles.email, pattern),
+        like(employeeProfiles.jobTitle, pattern),
+        like(employeeProfiles.department, pattern),
+      ),
+    ))
+    .orderBy(asc(employeeProfiles.displayName))
+    .limit(Math.min(Math.max(limit, 1), 20));
+}
+
 export async function updateOwnEmployeeProfile(
   userId: number,
   patch: { bio?: string | null; phone?: string | null },
@@ -534,6 +685,37 @@ export async function listPublishedAnnouncements() {
     .orderBy(desc(announcements.isPinned), desc(announcements.publishAt), desc(announcements.createdAt));
 }
 
+export async function searchPublishedAnnouncements(query: string, limit = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const escaped = query.replace(/[\\%_]/g, value => `\\${value}`);
+  const pattern = `%${escaped}%`;
+  return db
+    .select({
+      id: announcements.id,
+      title: announcements.title,
+      summary: announcements.summary,
+      body: announcements.body,
+      category: announcements.category,
+      publishAt: announcements.publishAt,
+    })
+    .from(announcements)
+    .where(and(
+      eq(announcements.status, "published"),
+      or(isNull(announcements.publishAt), lte(announcements.publishAt, now)),
+      or(isNull(announcements.expiresAt), gt(announcements.expiresAt, now)),
+      or(
+        like(announcements.title, pattern),
+        like(announcements.summary, pattern),
+        like(announcements.body, pattern),
+        like(announcements.category, pattern),
+      ),
+    ))
+    .orderBy(desc(announcements.isPinned), desc(announcements.publishAt), desc(announcements.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 20));
+}
+
 export async function listAllAnnouncements() {
   const db = await getDb();
   if (!db) return [];
@@ -567,6 +749,39 @@ export async function listPublishedEvents(from: Date, to: Date) {
       ),
     )
     .orderBy(asc(companyEvents.startAt));
+}
+
+export async function getPublishedUpcomingEventById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [event] = await db
+    .select()
+    .from(companyEvents)
+    .where(and(eq(companyEvents.id, id), eq(companyEvents.status, "published"), gte(companyEvents.endAt, new Date())))
+    .limit(1);
+  return event;
+}
+
+export async function listDashboardPinsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(dashboardPins)
+    .where(eq(dashboardPins.userId, userId))
+    .orderBy(desc(dashboardPins.createdAt));
+}
+
+export async function addDashboardPinForUser(userId: number, pinType: "hr_document" | "event", targetKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(dashboardPins).values({ userId, pinType, targetKey }).onDuplicateKeyUpdate({ set: { createdAt: new Date() } });
+}
+
+export async function removeDashboardPinForUser(userId: number, pinType: "hr_document" | "event", targetKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.delete(dashboardPins).where(and(eq(dashboardPins.userId, userId), eq(dashboardPins.pinType, pinType), eq(dashboardPins.targetKey, targetKey)));
 }
 
 export async function listAllEvents() {

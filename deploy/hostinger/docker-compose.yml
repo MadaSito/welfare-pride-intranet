@@ -1,0 +1,78 @@
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/hostinger/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@database:3306/${MYSQL_DATABASE}
+      LOCAL_STORAGE_PATH: /app/data/uploads
+    expose:
+      - "3000"
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  scheduler:
+    image: curlimages/curl:8.14.1
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          curl --fail --silent --show-error --max-time 55 \
+            -X POST -H "Authorization: Bearer $${CRON_SECRET}" \
+            "http://app:3000/api/cron/dispatch" || true
+          sleep 60
+        done
+    depends_on:
+      app:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      INTRANET_DOMAIN: ${INTRANET_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  mysql_data:
+  uploads:
+  caddy_data:
+  caddy_config:

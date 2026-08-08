@@ -3,14 +3,13 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerMicrosoftAuthRoutes } from "../auth/microsoft";
 import { scheduledBackupHandler } from "../scheduled/backup";
 import * as db from "../db";
+import { registerFileRoutes } from "../files";
 
 let frameOriginCache: { expiresAt: number; origins: string[] } = { expiresAt: 0, origins: [] };
 
@@ -50,6 +49,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
   app.use(async (_req, res, next) => {
     const frameOrigins = await getTechnologyFrameOrigins();
     const developmentScripts = process.env.NODE_ENV === "development" ? " 'unsafe-inline' 'unsafe-eval'" : "";
@@ -62,10 +63,10 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
+  app.get("/api/healthz", (_req, res) => res.status(200).json({ ok: true }));
+  registerFileRoutes(app);
   registerMicrosoftAuthRoutes(app);
-  app.post("/api/scheduled/backup", scheduledBackupHandler);
+  app.post("/api/cron/dispatch", scheduledBackupHandler);
   // tRPC API
   app.use(
     "/api/trpc",

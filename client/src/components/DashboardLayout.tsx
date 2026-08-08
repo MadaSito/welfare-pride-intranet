@@ -1,13 +1,17 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { BrandLogo } from "@/components/BrandLogo";
+import { GlobalSearch } from "@/components/GlobalSearch";
+import { WelfarePrideAssistant } from "@/components/WelfarePrideAssistant";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { ArchiveRestore, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, Laptop, Link2, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
+import { ArchiveRestore, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -55,7 +59,34 @@ const adminItems: NavItem[] = [
 function SignInScreen() {
   const [authStatus, setAuthStatus] = useState<{ configured: boolean; protocols: { oidc: boolean; oauth2: boolean; saml2: boolean; silentSignIn: boolean } } | null>(null);
   const [statusError, setStatusError] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const utils = trpc.useUtils();
+  const localStatus = trpc.auth.status.useQuery(undefined, { retry: false });
+  const setupOwner = trpc.auth.setupOwner.useMutation({
+    onSuccess: async () => {
+      await utils.auth.me.invalidate();
+      window.location.assign("/");
+    },
+  });
+  const localLogin = trpc.auth.login.useMutation({
+    onSuccess: async () => {
+      await utils.auth.me.invalidate();
+      window.location.assign("/");
+    },
+  });
   const authError = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("authError") : null;
+  const setupRequired = localStatus.data?.setupRequired ?? false;
+  const localPending = setupOwner.isPending || localLogin.isPending;
+  const localError = setupOwner.error?.message || localLogin.error?.message;
+
+  const submitLocalAccess = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (setupRequired) setupOwner.mutate({ name: ownerName, email, password, setupToken });
+    else localLogin.mutate({ email, password });
+  };
 
   useEffect(() => {
     let active = true;
@@ -94,14 +125,34 @@ function SignInScreen() {
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#D58240]">Employee sign in</p>
           <h2 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-black">Welcome to Welfare Pride</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Continue with your organizational Microsoft account. Existing Microsoft browser sessions can complete sign-in without another password prompt when company policy permits.
+            Sign in with the local owner account or your organizational Microsoft account. The owner account lets you configure Microsoft Entra after deployment.
           </p>
 
           {authError ? <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">Microsoft sign-in could not be completed. Try again or contact a Welfare Pride administrator with error code <strong>{authError}</strong>.</div> : null}
-          {!authStatus?.configured && authStatus ? <div className="mt-5 rounded-xl border border-[#D58240]/25 bg-[#D58240]/5 p-3 text-sm text-[#7A431F]">Enterprise sign-in has not been configured yet. An administrator can use the project setup access below to enter the Entra settings.</div> : null}
+          {!authStatus?.configured && authStatus ? <div className="mt-5 rounded-xl border border-[#D58240]/25 bg-[#D58240]/5 p-3 text-sm text-[#7A431F]">Enterprise sign-in is not configured yet. Use the local owner account below, then open Integration Settings to add Entra.</div> : null}
           {statusError ? <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">The sign-in configuration status is temporarily unavailable.</div> : null}
 
-          <div className="mt-8 space-y-3">
+          <form className="mt-7 space-y-4 rounded-2xl border border-[#5A92C9]/20 bg-[#5A92C9]/5 p-5" onSubmit={submitLocalAccess}>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#5A92C9] shadow-sm"><KeyRound className="h-4 w-4" aria-hidden="true" /></div>
+              <div><p className="font-semibold text-foreground">{setupRequired ? "Create the owner account" : "Local administrator sign in"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{setupRequired ? "This one-time step unlocks Integration Settings before Entra is available." : "Use the owner credentials created during first-time setup."}</p></div>
+            </div>
+            {setupRequired ? <div className="space-y-2"><Label htmlFor="owner-name">Owner name</Label><Input id="owner-name" autoComplete="name" value={ownerName} onChange={event => setOwnerName(event.target.value)} required /></div> : null}
+            <div className="space-y-2"><Label htmlFor="local-email">Email address</Label><Input id="local-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
+            <div className="space-y-2"><Label htmlFor="local-password">Password</Label><Input id="local-password" type="password" autoComplete={setupRequired ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} minLength={setupRequired ? 12 : 1} required /><p className="text-xs text-muted-foreground">{setupRequired ? "Use 12–128 characters with uppercase, lowercase, number, and symbol." : "Five failed attempts temporarily lock the account."}</p></div>
+            {setupRequired ? <div className="space-y-2"><Label htmlFor="setup-token">One-time setup token</Label><Input id="setup-token" type="password" autoComplete="off" value={setupToken} onChange={event => setSetupToken(event.target.value)} required /><p className="text-xs text-muted-foreground">Set <code>INITIAL_SETUP_TOKEN</code> in Hostinger before deployment, then enter the same value here.</p></div> : null}
+            {setupRequired && localStatus.data && !localStatus.data.setupTokenConfigured ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">The server is missing <code>INITIAL_SETUP_TOKEN</code>. Add it in Hostinger environment variables and redeploy before continuing.</div> : null}
+            {localError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError}</div> : null}
+            <Button type="submit" className="h-11 w-full bg-[#D58240] font-semibold text-white hover:bg-[#D58240]/90" disabled={localPending || localStatus.isLoading || (setupRequired && !localStatus.data?.setupTokenConfigured)}>{localPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{setupRequired ? "Create owner account" : "Sign in as administrator"}</Button>
+          </form>
+
+          <div className="my-7 flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            <span>Microsoft enterprise sign in</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <div className="space-y-3">
             <Button
               size="lg"
               className="h-12 w-full bg-[#5A92C9] text-base font-semibold text-white hover:bg-[#5A92C9]/90"
@@ -139,16 +190,6 @@ function SignInScreen() {
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Configured authentication protocols">
             {[{ label: "OIDC", ready: authStatus?.protocols.oidc }, { label: "OAuth 2.0", ready: authStatus?.protocols.oauth2 }, { label: "SAML 2.0", ready: authStatus?.protocols.saml2 }, { label: "Silent SSO", ready: authStatus?.protocols.silentSignIn }].map(protocol => <Badge key={protocol.label} variant="outline" className={protocol.ready ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-border bg-muted/50 text-muted-foreground"}>{protocol.label} · {protocol.ready ? "ready" : "setup needed"}</Badge>)}
           </div>
-
-          <div className="my-7 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            <span>project setup access</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <Button variant="ghost" className="w-full text-muted-foreground hover:text-foreground" onClick={() => startLogin()}>
-            Continue to configuration preview
-          </Button>
 
           <div className="mt-8 rounded-2xl border border-[#5A92C9]/15 bg-[#5A92C9]/5 p-4">
             <p className="text-xs leading-5 text-muted-foreground">
@@ -289,9 +330,8 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="hidden h-9 gap-2 border-border bg-white text-muted-foreground md:flex" onClick={() => setLocation("/people")}>
-              <Search className="h-4 w-4" /> Search people
-            </Button>
+            <GlobalSearch />
+            <WelfarePrideAssistant isAdmin={user?.role === "admin"} />
             <Badge variant="outline" className="hidden border-[#5A92C9]/25 bg-[#5A92C9]/5 text-[#376F9F] sm:inline-flex"><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#5A92C9]" />Secure workspace</Badge>
           </div>
         </header>

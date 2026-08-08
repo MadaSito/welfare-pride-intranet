@@ -1,0 +1,27 @@
+# Copy the required values into Hostinger hPanel or a root-readable VPS .env file.
+NODE_ENV=production
+PORT=3000
+INTRANET_DOMAIN=intranet.example.org
+DATABASE_URL=mysql://welfare_pride:replace-with-a-strong-password@127.0.0.1:3306/welfare_pride
+MYSQL_DATABASE=welfare_pride
+MYSQL_USER=welfare_pride
+MYSQL_PASSWORD=replace-with-a-strong-password
+MYSQL_ROOT_PASSWORD=replace-with-a-different-strong-password
+JWT_SECRET=replace-with-at-least-32-random-bytes
+INITIAL_SETUP_TOKEN=replace-with-a-one-time-random-setup-token
+CRON_SECRET=replace-with-a-different-random-cron-token
+STORAGE_DRIVER=local
+LOCAL_STORAGE_PATH=/app/data/uploads
+STORAGE_ENDPOINT=
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=
+STORAGE_ACCESS_KEY_ID=
+STORAGE_SECRET_ACCESS_KEY=
+STORAGE_FORCE_PATH_STYLE=false
+AI_PROVIDER_NAME=OpenAI-compatible provider
+AI_BASE_URL=
+AI_MODEL=
+AI_API_KEY=
+AI_ALLOW_PRIVATE_ENDPOINTS=false
+RUN_MIGRATIONS_ON_START=true
+COMPOSE_PROJECT_NAME=welfare-pride-intranet

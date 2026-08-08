@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek, subMonths } from "date-fns";
-import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Clock, ExternalLink, List, MapPin, Pencil, Plus, ShieldAlert, Video, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Bookmark, BookmarkCheck, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Clock, ExternalLink, List, MapPin, Pencil, Plus, ShieldAlert, Video, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type EventForm = {
@@ -42,6 +42,7 @@ export default function Events() {
   const range = useMemo(() => ({ from: new Date(Date.now() - 365 * 86400000), to: new Date(Date.now() + 730 * 86400000) }), []);
   const published = trpc.events.list.useQuery(range);
   const adminList = trpc.events.adminList.useQuery(undefined, { enabled: isAdmin });
+  const pins = trpc.dashboardPins.list.useQuery();
   const items = isAdmin ? (adminList.data || []) : (published.data || []);
   const [view, setView] = useState<"list" | "month">("list");
   const [category, setCategory] = useState("all");
@@ -56,6 +57,12 @@ export default function Events() {
     .filter(item => category === "all" || item.category === category)
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()), [category, items]);
   const detail = items.find(item => item.id === detailId) || null;
+  const pinnedEventIds = useMemo(() => new Set(pins.data?.pinnedEventIds || []), [pins.data?.pinnedEventIds]);
+  const deepLinkedEventId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const value = Number(new URLSearchParams(window.location.search).get("event"));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }, []);
   const monthDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(month));
     return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
@@ -64,6 +71,17 @@ export default function Events() {
   const create = trpc.events.create.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event created."); setEditorOpen(false); }, onError: error => toast.error(error.message) });
   const update = trpc.events.update.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event updated."); setEditorOpen(false); }, onError: error => toast.error(error.message) });
   const cancel = trpc.events.cancel.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event cancelled."); setDetailId(null); }, onError: error => toast.error(error.message) });
+  const pinEvent = trpc.dashboardPins.pinEvent.useMutation({ onSuccess: async () => { await utils.dashboardPins.list.invalidate(); toast.success("Event pinned to your dashboard."); }, onError: error => toast.error(error.message) });
+  const removePin = trpc.dashboardPins.remove.useMutation({ onSuccess: async () => { await utils.dashboardPins.list.invalidate(); toast.success("Event removed from your dashboard."); }, onError: error => toast.error(error.message) });
+
+  useEffect(() => {
+    if (deepLinkedEventId && items.some(item => item.id === deepLinkedEventId)) setDetailId(deepLinkedEventId);
+  }, [deepLinkedEventId, items]);
+
+  function toggleEventPin(eventId: number) {
+    if (pinnedEventIds.has(eventId)) removePin.mutate({ pinType: "event", targetKey: String(eventId) });
+    else pinEvent.mutate({ eventId });
+  }
 
   function openEditor(item?: (typeof items)[number]) {
     if (!item) {
@@ -122,7 +140,7 @@ export default function Events() {
             <article key={item.id} className="grid gap-5 rounded-2xl border border-border bg-white p-5 shadow-sm md:grid-cols-[90px_1fr_auto]">
               <div className="flex h-20 w-20 flex-col items-center justify-center rounded-2xl bg-[#5A92C9]/10 text-[#376F9F]"><span className="text-xs font-bold uppercase">{new Date(item.startAt).toLocaleString(undefined, { month: "short" })}</span><span className="text-2xl font-bold">{new Date(item.startAt).getDate()}</span></div>
               <div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="border-[#D58240]/25 bg-[#D58240]/5 text-[#9A5727]">{item.category}</Badge>{isAdmin ? <Badge variant="outline" className="capitalize">{item.status}</Badge> : null}</div><h2 className="mt-3 text-lg font-bold">{item.title}</h2>{item.description ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p> : null}<div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{new Date(item.startAt).toLocaleString()}</span>{item.location ? <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{item.location}</span> : null}</div></div>
-              <div className="flex items-start gap-1"><Button variant="ghost" size="sm" className="text-[#376F9F]" onClick={() => setDetailId(item.id)}>View details</Button>{isAdmin ? <Button variant="ghost" size="sm" onClick={() => openEditor(item)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Edit</Button> : null}</div>
+              <div className="flex items-start gap-1">{(pinnedEventIds.has(item.id) || (item.status === "published" && new Date(item.endAt).getTime() >= Date.now())) ? <Button variant="ghost" size="icon" className="h-8 w-8 text-[#D58240]" aria-label={pinnedEventIds.has(item.id) ? `Unpin ${item.title}` : `Pin ${item.title}`} title={pinnedEventIds.has(item.id) ? "Remove from dashboard" : "Pin to dashboard"} onClick={() => toggleEventPin(item.id)} disabled={pinEvent.isPending || removePin.isPending}>{pinnedEventIds.has(item.id) ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}</Button> : null}<Button variant="ghost" size="sm" className="text-[#376F9F]" onClick={() => setDetailId(item.id)}>View details</Button>{isAdmin ? <Button variant="ghost" size="sm" onClick={() => openEditor(item)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Edit</Button> : null}</div>
             </article>
           ))}
         </div>
@@ -137,7 +155,7 @@ export default function Events() {
 
       <Dialog open={Boolean(detail)} onOpenChange={open => !open && setDetailId(null)}>
         <DialogContent className="max-w-xl">
-          {detail ? <><DialogHeader><div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="border-[#D58240]/25 bg-[#D58240]/5 text-[#9A5727]">{detail.category}</Badge>{isAdmin ? <Badge variant="outline" className="capitalize">{detail.status}</Badge> : null}</div><DialogTitle className="pt-2 text-2xl">{detail.title}</DialogTitle><DialogDescription>Welfare Pride company event details</DialogDescription></DialogHeader><div className="space-y-4"><div className="rounded-xl bg-[#5A92C9]/5 p-4 text-sm"><p className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 text-[#5A92C9]" /><span>{new Date(detail.startAt).toLocaleString()} – {new Date(detail.endAt).toLocaleString()}</span></p>{detail.location ? <p className="mt-3 flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-[#5A92C9]" />{detail.location}</p> : null}</div>{detail.description ? <p className="whitespace-pre-wrap text-sm leading-7">{detail.description}</p> : null}{detail.meetingUrl ? <a href={detail.meetingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center font-semibold text-[#376F9F]"><Video className="mr-2 h-4 w-4" />Join online <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a> : null}</div>{isAdmin ? <DialogFooter className="border-t border-border pt-4"><Button variant="outline" onClick={() => { setDetailId(null); openEditor(detail); }}><Pencil className="mr-2 h-4 w-4" />Edit</Button>{detail.status !== "cancelled" ? <Button variant="destructive" onClick={() => cancel.mutate({ id: detail.id })}><XCircle className="mr-2 h-4 w-4" />Cancel event</Button> : null}</DialogFooter> : null}</> : null}
+          {detail ? <><DialogHeader><div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="border-[#D58240]/25 bg-[#D58240]/5 text-[#9A5727]">{detail.category}</Badge>{isAdmin ? <Badge variant="outline" className="capitalize">{detail.status}</Badge> : null}</div><DialogTitle className="pt-2 text-2xl">{detail.title}</DialogTitle><DialogDescription>Welfare Pride company event details</DialogDescription></DialogHeader><div className="space-y-4"><div className="rounded-xl bg-[#5A92C9]/5 p-4 text-sm"><p className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 text-[#5A92C9]" /><span>{new Date(detail.startAt).toLocaleString()} – {new Date(detail.endAt).toLocaleString()}</span></p>{detail.location ? <p className="mt-3 flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-[#5A92C9]" />{detail.location}</p> : null}</div>{detail.description ? <p className="whitespace-pre-wrap text-sm leading-7">{detail.description}</p> : null}{detail.meetingUrl ? <a href={detail.meetingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center font-semibold text-[#376F9F]"><Video className="mr-2 h-4 w-4" />Join online <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></a> : null}</div><DialogFooter className="border-t border-border pt-4"><Button variant="outline" onClick={() => toggleEventPin(detail.id)} disabled={pinEvent.isPending || removePin.isPending || (!pinnedEventIds.has(detail.id) && (detail.status !== "published" || new Date(detail.endAt).getTime() < Date.now()))}>{pinnedEventIds.has(detail.id) ? <BookmarkCheck className="mr-2 h-4 w-4 text-[#D58240]" /> : <Bookmark className="mr-2 h-4 w-4 text-[#D58240]" />}{pinnedEventIds.has(detail.id) ? "Remove from dashboard" : "Pin to dashboard"}</Button>{isAdmin ? <><Button variant="outline" onClick={() => { setDetailId(null); openEditor(detail); }}><Pencil className="mr-2 h-4 w-4" />Edit</Button>{detail.status !== "cancelled" ? <Button variant="destructive" onClick={() => cancel.mutate({ id: detail.id })}><XCircle className="mr-2 h-4 w-4" />Cancel event</Button> : null}</> : null}</DialogFooter></> : null}
         </DialogContent>
       </Dialog>
 

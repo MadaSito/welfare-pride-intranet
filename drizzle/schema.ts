@@ -22,7 +22,7 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Stable identity key for local or Microsoft Entra users. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -35,6 +35,55 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export const localCredentials = mysqlTable(
+  "local_credentials",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 320 }).notNull(),
+    passwordHash: varchar("passwordHash", { length: 256 }).notNull(),
+    passwordSalt: varchar("passwordSalt", { length: 128 }).notNull(),
+    failedAttempts: int("failedAttempts").default(0).notNull(),
+    lockedUntil: timestamp("lockedUntil"),
+    totpSecretEncrypted: text("totpSecretEncrypted"),
+    recoveryCodesEncrypted: text("recoveryCodesEncrypted"),
+    mfaEnabled: boolean("mfaEnabled").default(false).notNull(),
+    passwordChangedAt: timestamp("passwordChangedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("local_credentials_user_unique").on(table.userId),
+    uniqueIndex("local_credentials_email_unique").on(table.email),
+  ],
+);
+
+export const appSessions = mysqlTable(
+  "app_sessions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: varchar("tokenHash", { length: 64 }).notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+    revokedAt: timestamp("revokedAt"),
+    userAgentHash: varchar("userAgentHash", { length: 64 }),
+    ipHash: varchar("ipHash", { length: 64 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("app_sessions_token_hash_unique").on(table.tokenHash),
+    index("app_sessions_user_expiry_idx").on(table.userId, table.expiresAt),
+  ],
+);
+
+export type LocalCredential = typeof localCredentials.$inferSelect;
+export type AppSession = typeof appSessions.$inferSelect;
 
 export const employeeProfiles = mysqlTable(
   "employee_profiles",
@@ -137,6 +186,23 @@ export const companyEvents = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => [index("company_events_range_idx").on(table.startAt, table.endAt)],
+);
+
+export const dashboardPins = mysqlTable(
+  "dashboard_pins",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pinType: mysqlEnum("pinType", ["hr_document", "event"]).notNull(),
+    targetKey: varchar("targetKey", { length: 255 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("dashboard_pins_user_type_target_unique").on(table.userId, table.pinType, table.targetKey),
+    index("dashboard_pins_user_created_idx").on(table.userId, table.createdAt),
+  ],
 );
 
 export const holidays = mysqlTable(
@@ -298,6 +364,10 @@ export const backupDestinations = mysqlTable(
       .default("unconfigured")
       .notNull(),
     lastTestedAt: timestamp("lastTestedAt"),
+    scheduleCron: varchar("scheduleCron", { length: 120 }),
+    scheduleEnabled: boolean("scheduleEnabled").default(false).notNull(),
+    lastScheduledDispatchAt: timestamp("lastScheduledDispatchAt"),
+    /** Retained only for a non-destructive migration from the former managed scheduler. */
     scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
     createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -306,6 +376,7 @@ export const backupDestinations = mysqlTable(
   table => [
     uniqueIndex("backup_destinations_provider_name_unique").on(table.provider, table.displayName),
     index("backup_destinations_task_uid_idx").on(table.scheduleCronTaskUid),
+    index("backup_destinations_schedule_idx").on(table.scheduleEnabled, table.lastScheduledDispatchAt),
   ]
 );
 
@@ -378,6 +449,7 @@ export type InsertEmployeeProfile = typeof employeeProfiles.$inferInsert;
 export type MicrosoftOauthSession = typeof microsoftOauthSessions.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type CompanyEvent = typeof companyEvents.$inferSelect;
+export type DashboardPin = typeof dashboardPins.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type ImportantLink = typeof importantLinks.$inferSelect;
 export type ContentBlock = typeof contentBlocks.$inferSelect;

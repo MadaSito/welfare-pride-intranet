@@ -40,6 +40,11 @@ export default function People() {
   const [selected, setSelected] = useState<DirectoryProfile | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState({ displayName: "", jobTitle: "", department: "", officeLocation: "", bio: "", phone: "" });
+  const deepLinkedProfileId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const value = Number(new URLSearchParams(window.location.search).get("employee"));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }, []);
 
   const updateMe = trpc.profiles.updateMe.useMutation({
     onSuccess: async () => {
@@ -97,6 +102,12 @@ export default function People() {
     const refreshed = directory.profiles.find(profile => profile.id === selected.id);
     if (refreshed) setSelected(refreshed);
   }, [directory.profiles, selected]);
+
+  useEffect(() => {
+    if (!deepLinkedProfileId || !directory.profiles) return;
+    const profile = directory.profiles.find(item => item.id === deepLinkedProfileId);
+    if (profile) setSelected(profile);
+  }, [deepLinkedProfileId, directory.profiles]);
 
   function openEditor(profile: DirectoryProfile) {
     setSelected(profile);
