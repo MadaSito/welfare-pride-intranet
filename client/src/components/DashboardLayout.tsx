@@ -62,7 +62,6 @@ function SignInScreen() {
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [setupToken, setSetupToken] = useState("");
   const utils = trpc.useUtils();
   const localStatus = trpc.auth.status.useQuery(undefined, { retry: false });
   const setupOwner = trpc.auth.setupOwner.useMutation({
@@ -84,7 +83,7 @@ function SignInScreen() {
 
   const submitLocalAccess = (event: React.FormEvent) => {
     event.preventDefault();
-    if (setupRequired) setupOwner.mutate({ name: ownerName, email, password, setupToken });
+    if (setupRequired) setupOwner.mutate({ name: ownerName, email, password });
     else localLogin.mutate({ email, password });
   };
 
@@ -140,10 +139,9 @@ function SignInScreen() {
             {setupRequired ? <div className="space-y-2"><Label htmlFor="owner-name">Owner name</Label><Input id="owner-name" autoComplete="name" value={ownerName} onChange={event => setOwnerName(event.target.value)} required /></div> : null}
             <div className="space-y-2"><Label htmlFor="local-email">Email address</Label><Input id="local-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
             <div className="space-y-2"><Label htmlFor="local-password">Password</Label><Input id="local-password" type="password" autoComplete={setupRequired ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} minLength={setupRequired ? 12 : 1} required /><p className="text-xs text-muted-foreground">{setupRequired ? "Use 12–128 characters with uppercase, lowercase, number, and symbol." : "Five failed attempts temporarily lock the account."}</p></div>
-            {setupRequired ? <div className="space-y-2"><Label htmlFor="setup-token">One-time setup token</Label><Input id="setup-token" type="password" autoComplete="off" value={setupToken} onChange={event => setSetupToken(event.target.value)} required /><p className="text-xs text-muted-foreground">Set <code>INITIAL_SETUP_TOKEN</code> in Hostinger before deployment, then enter the same value here.</p></div> : null}
-            {setupRequired && localStatus.data && !localStatus.data.setupTokenConfigured ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">The server is missing <code>INITIAL_SETUP_TOKEN</code>. Add it in Hostinger environment variables and redeploy before continuing.</div> : null}
+            {setupRequired ? <p className="rounded-xl border border-[#5A92C9]/20 bg-white/80 p-3 text-xs leading-5 text-muted-foreground">The first submitted owner account becomes the administrator. Setup closes automatically after it is created.</p> : null}
             {localError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError}</div> : null}
-            <Button type="submit" className="h-11 w-full bg-[#D58240] font-semibold text-white hover:bg-[#D58240]/90" disabled={localPending || localStatus.isLoading || (setupRequired && !localStatus.data?.setupTokenConfigured)}>{localPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{setupRequired ? "Create owner account" : "Sign in as administrator"}</Button>
+            <Button type="submit" className="h-11 w-full bg-[#D58240] font-semibold text-white hover:bg-[#D58240]/90" disabled={localPending || localStatus.isLoading}>{localPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{setupRequired ? "Create owner account" : "Sign in as administrator"}</Button>
           </form>
 
           <div className="my-7 flex items-center gap-4 text-xs text-muted-foreground">

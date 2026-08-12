@@ -70,3 +70,6 @@
 - [x] Validate the new features at desktop and mobile breakpoints and inspect production runtime logs.
 - [x] Document the standalone runtime boundaries and realistic Hostinger and WordPress integration paths.
 - [x] Save and deliver an updated project checkpoint with practical first-login and deployment instructions.
+- [x] Remove the unavailable initial setup-token requirement from the published first-owner setup flow.
+- [x] Allow exactly one local owner account to be created without a token, then close setup permanently after successful account creation.
+- [x] Update first-login guidance, tests, and published sign-in verification for the no-token owner setup flow.

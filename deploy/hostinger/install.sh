@@ -46,11 +46,10 @@ create_docker_env() {
     return
   fi
   [[ -n "$DOMAIN" ]] || { echo "--domain is required for Docker TLS deployment." >&2; exit 1; }
-  local db_password root_password jwt_secret setup_token cron_secret
+  local db_password root_password jwt_secret cron_secret
   db_password="$(random_secret)"
   root_password="$(random_secret)"
   jwt_secret="$(random_secret)"
-  setup_token="$(random_secret)"
   cron_secret="$(random_secret)"
   umask 077
   cat > "$ROOT_DIR/.env" <<EOF
@@ -63,7 +62,6 @@ MYSQL_PASSWORD=$db_password
 MYSQL_ROOT_PASSWORD=$root_password
 DATABASE_URL=mysql://welfare_pride:$db_password@database:3306/welfare_pride
 JWT_SECRET=$jwt_secret
-INITIAL_SETUP_TOKEN=$setup_token
 CRON_SECRET=$cron_secret
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=/app/data/uploads
@@ -71,8 +69,7 @@ RUN_MIGRATIONS_ON_START=true
 COMPOSE_PROJECT_NAME=welfare-pride-intranet
 AI_ALLOW_PRIVATE_ENDPOINTS=false
 EOF
-  echo "Created $ROOT_DIR/.env with mode 600. Store the following one-time setup token securely:"
-  echo "$setup_token"
+  echo "Created $ROOT_DIR/.env with mode 600. Open the intranet and create the one-time local owner account immediately."
 }
 
 require_node() {

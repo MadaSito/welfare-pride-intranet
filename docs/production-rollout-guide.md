@@ -113,7 +113,7 @@ Restore controls intentionally perform checksum-verified retrieval validation an
 
 ## 9. Administrator and content setup
 
-Create the first local owner account with `INITIAL_SETUP_TOKEN`, then remove that token from the runtime environment. Promote additional administrators only through controlled user-role management and test the standard-user denial screen for every `/admin/*` route. The server independently enforces the administrator role for all sensitive procedures.
+Create the first local owner account immediately after deployment, before the intranet URL is shared. Setup then closes automatically. Promote additional administrators only through controlled user-role management and test the standard-user denial screen for every `/admin/*` route. The server independently enforces the administrator role for all sensitive procedures.
 
 Before launch, Welfare Pride administrators should publish approved About content, founder biographies and milestones, announcements, events, Technology links, and employee-facing Important Links. The portal intentionally does not fabricate company history, founder details, or employee-generated testimonials.
 

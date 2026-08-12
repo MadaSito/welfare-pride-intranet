@@ -11,7 +11,7 @@ The production application runs without any proprietary managed service, domain,
 | Web application | React frontend served by Express/tRPC | One Node.js Web App website | Docker container or Node service |
 | Database | Standard MySQL 8-compatible schema through Drizzle | Hostinger MySQL via `DATABASE_URL` | MySQL container or managed MySQL |
 | Session store | Random opaque session token; SHA-256 token hash stored in MySQL | Same | Same |
-| Initial access | One-time setup token from environment plus local administrator credentials | hPanel environment variables | `.env`/secret manager |
+| Initial access | One-time local administrator creation, then local credentials | Sign in page | Same |
 | Enterprise identity | Optional Microsoft Entra OIDC and SAML | Same | Same |
 | File storage | S3-compatible adapter; local filesystem only for development | S3/Wasabi/Backblaze/AWS | S3-compatible or mounted volume |
 | Scheduled work | Database schedule definitions and a secret-protected dispatch endpoint | Hostinger UTC cron calls endpoint each minute | system cron calls endpoint each minute |
@@ -22,7 +22,7 @@ The production application runs without any proprietary managed service, domain,
 
 ### First administrator setup
 
-When no local credential exists, the sign-in page displays **Set up owner account**. The administrator enters an email address, a strong password, password confirmation, and the one-time `INITIAL_SETUP_TOKEN` configured in Hostinger. The server compares the token with a timing-safe check, creates the first administrator, stores a scrypt password hash with a unique salt, immediately invalidates the setup route by the existence of that credential, and starts a portable application session.
+When no local credential exists, the sign-in page displays **Set up owner account**. The administrator enters a name, email address, and strong password. The server creates the first administrator, stores a scrypt password hash with a unique salt, immediately invalidates the setup route by the existence of that credential, and starts a portable application session. This first-owner account should be created immediately after deployment and before the intranet URL is shared.
 
 This removes the deadlock shown in the published screenshot: Microsoft Entra can be configured only after login, but login no longer depends on Microsoft Entra.
 

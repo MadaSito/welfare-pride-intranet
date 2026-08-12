@@ -22,7 +22,6 @@ Use `deploy/hostinger/environment.template` only as a reference. Store real valu
 | --- | --- | --- |
 | `DATABASE_URL` | Dedicated MySQL connection URL | Yes |
 | `JWT_SECRET` | AES-256-GCM key derivation for saved integration secrets | Yes; at least 32 random bytes |
-| `INITIAL_SETUP_TOKEN` | One-time proof used to create the first local owner account | Yes for initial setup |
 | `CRON_SECRET` | Bearer token for `/api/cron/dispatch` | Yes when backup schedules are enabled |
 | `STORAGE_*` | S3-compatible profile and company image storage | Required on managed hosting; optional on a single VPS using a persistent volume |
 | `AI_*` | Optional environment-based AI provider settings | Optional; can be configured in the administrator UI |
@@ -60,7 +59,7 @@ chmod +x deploy/hostinger/install.sh deploy/hostinger/entrypoint.sh deploy/hosti
 sudo deploy/hostinger/install.sh --mode docker --domain intranet.example.org
 ```
 
-The installer generates `.env` with mode `600`, creates independent database and application secrets, prints the **one-time setup token**, builds the containers, applies migrations, and starts TLS. Before running it, point the subdomain DNS record to the VPS and allow inbound TCP ports `80` and `443`. Do not expose MySQL or the Node application port publicly.
+The installer generates `.env` with mode `600`, creates independent database and application secrets, builds the containers, applies migrations, and starts TLS. Before running it, point the subdomain DNS record to the VPS and allow inbound TCP ports `80` and `443`. Do not expose MySQL or the Node application port publicly.
 
 Use the included backup command from a root-owned cron entry:
 
@@ -72,7 +71,7 @@ The script creates compressed database and upload archives, records SHA-256 chec
 
 ## 5. First login before Microsoft Entra is configured
 
-Open `https://intranet.example.org`. The sign-in screen detects that no owner exists and shows **Create first owner account**. Enter the exact `INITIAL_SETUP_TOKEN`, the owner’s name, email, and a strong password. The server creates the first local administrator and a revocable secure session. After confirming that local administrator login works, remove `INITIAL_SETUP_TOKEN` from the runtime environment and restart the app.
+Open `https://intranet.example.org`. The sign-in screen detects that no owner exists and shows **Create first owner account**. Enter the owner’s name, email, and a strong password. The server creates the first local administrator and a revocable secure session, then permanently closes setup because a local credential now exists. Complete this step immediately after deployment and before sharing the intranet URL.
 
 Sign in locally, open **Administration → Integration Settings**, and configure Microsoft Entra OIDC or SAML, Microsoft Graph, SharePoint, and the optional AI provider. Local owner login remains the break-glass path when Entra configuration is unavailable.
 

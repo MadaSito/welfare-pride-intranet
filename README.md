@@ -26,7 +26,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Set `DATABASE_URL`, `JWT_SECRET`, and `INITIAL_SETUP_TOKEN` before opening the application. Development defaults to local file storage under `data/uploads`.
+Set `DATABASE_URL` and `JWT_SECRET` before opening the application. On first launch, create the local owner account immediately; setup then closes automatically. Development defaults to local file storage under `data/uploads`.
 
 ## Production
 

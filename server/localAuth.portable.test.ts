@@ -38,21 +38,20 @@ function context() {
 describe("portable local authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.INITIAL_SETUP_TOKEN = "correct-one-time-token";
     mocks.validateStrongPassword.mockReturnValue(null);
     mocks.hashPassword.mockResolvedValue({ passwordHash: "hash", passwordSalt: "salt" });
   });
 
   it("reports setup as required only while no local credential exists", async () => {
     mocks.hasLocalCredential.mockResolvedValue(false);
-    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: true, setupTokenConfigured: true });
+    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: true });
     mocks.hasLocalCredential.mockResolvedValue(true);
-    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: false, setupTokenConfigured: true });
+    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: false });
   });
 
-  it("rejects an incorrect setup token before creating a credential", async () => {
-    mocks.hasLocalCredential.mockResolvedValue(false);
-    await expect(localAuthRouter.createCaller(context()).setupOwner({ name: "Portal Owner", email: "owner@example.org", password: "ValidPassword!123", setupToken: "wrong-token" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  it("closes setup permanently when a local credential already exists", async () => {
+    mocks.hasLocalCredential.mockResolvedValue(true);
+    await expect(localAuthRouter.createCaller(context()).setupOwner({ name: "Portal Owner", email: "owner@example.org", password: "ValidPassword!123" })).rejects.toMatchObject({ code: "CONFLICT" });
     expect(mocks.createInitialLocalAdmin).not.toHaveBeenCalled();
   });
 
@@ -61,7 +60,7 @@ describe("portable local authentication", () => {
     mocks.hasLocalCredential.mockResolvedValue(false);
     mocks.createInitialLocalAdmin.mockResolvedValue(user);
     const ctx = context();
-    await expect(localAuthRouter.createCaller(ctx).setupOwner({ name: "Portal Owner", email: "Owner@Example.org", password: "ValidPassword!123", setupToken: "correct-one-time-token" })).resolves.toMatchObject({ success: true, user });
+    await expect(localAuthRouter.createCaller(ctx).setupOwner({ name: "Portal Owner", email: "Owner@Example.org", password: "ValidPassword!123" })).resolves.toMatchObject({ success: true, user });
     expect(mocks.createInitialLocalAdmin).toHaveBeenCalledWith(expect.objectContaining({ email: "owner@example.org", passwordHash: "hash", passwordSalt: "salt" }));
     expect(mocks.issueAppSession).toHaveBeenCalledWith(ctx.req, ctx.res, 41);
   });

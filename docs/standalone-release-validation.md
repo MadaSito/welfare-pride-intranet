@@ -25,7 +25,7 @@ The standalone release was validated after replacing managed-platform authentica
 
 ## Security tests added for this release
 
-The test suite verifies one-time owner setup token enforcement, normalized local login behavior, credential lockout accounting, employee-derived SharePoint search authorization, employee-derived dashboard pin ownership, delegated document reauthorization before pinning, twelve-item pin limits, permission-scoped assistant retrieval, no-model behavior when approved sources are absent, private AI endpoint rejection by default, and absence of committed platform-specific runtime dependencies.
+The test suite verifies one-time owner setup closure, normalized local login behavior, credential lockout accounting, employee-derived SharePoint search authorization, employee-derived dashboard pin ownership, delegated document reauthorization before pinning, twelve-item pin limits, permission-scoped assistant retrieval, no-model behavior when approved sources are absent, private AI endpoint rejection by default, and absence of committed platform-specific runtime dependencies.
 
 ## Deployment validation boundary
 
@@ -33,4 +33,4 @@ The production artifact and native Node startup path were executed in the sandbo
 
 ## Required remote acceptance checks
 
-After deploying, confirm TLS on the final intranet subdomain, create the first owner with `INITIAL_SETUP_TOKEN`, remove that token and restart, sign out and sign back in locally, configure Entra and SharePoint, test standard and administrator accounts, verify profile uploads survive a restart, test unified search with users holding different SharePoint permissions, run an AI question with and without an authorized HR source, execute one backup dry run, and confirm the cron dispatcher is authenticated.
+After deploying, confirm TLS on the final intranet subdomain, create the first owner immediately before sharing the intranet URL, sign out and sign back in locally, configure Entra and SharePoint, test standard and administrator accounts, verify profile uploads survive a restart, test unified search with users holding different SharePoint permissions, run an AI question with and without an authorized HR source, execute one backup dry run, and confirm the cron dispatcher is authenticated.

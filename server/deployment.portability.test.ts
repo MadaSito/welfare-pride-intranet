@@ -46,7 +46,7 @@ describe("standalone deployment package", () => {
 
   it("documents independent first-owner, session, cron, and database secrets without committing values", () => {
     const template = read("deploy/hostinger/environment.template");
-    for (const key of ["DATABASE_URL", "JWT_SECRET", "INITIAL_SETUP_TOKEN", "CRON_SECRET"]) expect(template).toContain(`${key}=`);
+    for (const key of ["DATABASE_URL", "JWT_SECRET", "CRON_SECRET"]) expect(template).toContain(`${key}=`);
     expect(template).toContain("replace-with-");
     expect(template).not.toMatch(/[A-Fa-f0-9]{64}/);
   });

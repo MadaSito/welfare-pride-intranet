@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
@@ -14,18 +14,9 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
-function setupTokenMatches(provided: string) {
-  const expected = process.env.INITIAL_SETUP_TOKEN || "";
-  if (!expected || !provided) return false;
-  const expectedHash = createHash("sha256").update(expected).digest();
-  const providedHash = createHash("sha256").update(provided).digest();
-  return timingSafeEqual(expectedHash, providedHash);
-}
-
 export const localAuthRouter = router({
   status: publicProcedure.query(async () => ({
     setupRequired: !(await db.hasLocalCredential()),
-    setupTokenConfigured: Boolean(process.env.INITIAL_SETUP_TOKEN),
   })),
   me: publicProcedure.query(({ ctx }) => ctx.user),
   setupOwner: publicProcedure
@@ -33,12 +24,9 @@ export const localAuthRouter = router({
       name: z.string().trim().min(2).max(120),
       email: z.string().trim().email().max(320),
       password: z.string().min(12).max(128),
-      setupToken: z.string().min(1).max(512),
     }))
     .mutation(async ({ ctx, input }) => {
       if (await db.hasLocalCredential()) throw new TRPCError({ code: "CONFLICT", message: "Owner setup is already complete." });
-      if (!process.env.INITIAL_SETUP_TOKEN) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "INITIAL_SETUP_TOKEN is not configured on the server." });
-      if (!setupTokenMatches(input.setupToken)) throw new TRPCError({ code: "UNAUTHORIZED", message: "The one-time setup token is invalid." });
       const passwordError = validateStrongPassword(input.password);
       if (passwordError) throw new TRPCError({ code: "BAD_REQUEST", message: passwordError });
       const email = normalizeEmail(input.email);
