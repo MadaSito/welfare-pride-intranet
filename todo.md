@@ -79,3 +79,5 @@
 - [x] Create reproducible Docker and Linux VPS deployment instructions for the standalone release.
 - [x] Document recommended production hardware and virtualization sizing for approximately 25 active intranet users.
 - [x] Validate the deployment commands and deliver the final self-hosting runbook.
+- [x] Create a portable master prompt that captures the Welfare Pride intranet’s design, feature set, architecture, security boundaries, and deployment requirements.
+- [x] Include a complete categorized list of implemented portal features and reusable acceptance criteria in the master prompt deliverable.
