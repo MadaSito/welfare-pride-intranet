@@ -73,3 +73,9 @@
 - [x] Remove the unavailable initial setup-token requirement from the published first-owner setup flow.
 - [x] Allow exactly one local owner account to be created without a token, then close setup permanently after successful account creation.
 - [x] Update first-login guidance, tests, and published sign-in verification for the no-token owner setup flow.
+- [x] Verify GitHub synchronization status and re-scan active deliverables for proprietary platform dependencies.
+- [x] Create a cited Azure Container Apps deployment runbook using Azure Container Registry, managed MySQL, Azure Files, Key Vault, ingress, and scheduled dispatch.
+- [x] Add opt-in TLS configuration for Azure Database for MySQL runtime and migration connections.
+- [x] Create reproducible Docker and Linux VPS deployment instructions for the standalone release.
+- [x] Document recommended production hardware and virtualization sizing for approximately 25 active intranet users.
+- [x] Validate the deployment commands and deliver the final self-hosting runbook.

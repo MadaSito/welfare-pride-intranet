@@ -30,7 +30,7 @@ Set `DATABASE_URL` and `JWT_SECRET` before opening the application. On first lau
 
 ## Production
 
-Read [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) for Hostinger managed Node.js, VPS Docker, first-login, DNS, TLS, cron, backup, and WordPress-link instructions. The included installer supports:
+Read [`docs/azure-docker-vps-deployment-runbook.md`](docs/azure-docker-vps-deployment-runbook.md) for Azure Container Apps, Docker, Linux VPS, first-login, DNS, TLS, cron, capacity, and rollout instructions. Read [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) for Hostinger-specific deployment and WordPress-link guidance. The included installer supports:
 
 ```bash
 deploy/hostinger/install.sh --mode docker --domain intranet.example.org
@@ -53,6 +53,7 @@ Database schema changes must be generated with `pnpm db:generate`, reviewed in `
 | Document | Purpose |
 | --- | --- |
 | [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) | Self-hosting, WordPress connection, and first login |
+| [`docs/azure-docker-vps-deployment-runbook.md`](docs/azure-docker-vps-deployment-runbook.md) | Azure Container Apps, Docker, Linux VPS, capacity, and release procedures |
 | [`docs/standalone-release-validation.md`](docs/standalone-release-validation.md) | Test, build, audit, production-smoke, and deployment validation evidence |
 | [`docs/portable-architecture.md`](docs/portable-architecture.md) | Runtime and security architecture |
 | [`docs/production-rollout-guide.md`](docs/production-rollout-guide.md) | Microsoft Entra, Graph, SharePoint, and cloud setup |

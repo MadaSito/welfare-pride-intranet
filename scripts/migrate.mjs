@@ -9,7 +9,23 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const connection = await mysql.createConnection(databaseUrl);
+function migrationConnectionOptions(connectionString) {
+  if (process.env.DATABASE_SSL?.toLowerCase() !== "true") return connectionString;
+  const parsed = new URL(connectionString);
+  if (parsed.protocol !== "mysql:" || !parsed.hostname || !parsed.pathname || parsed.pathname === "/") {
+    throw new Error("DATABASE_URL must be a valid mysql:// URL when DATABASE_SSL=true.");
+  }
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 3306,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: decodeURIComponent(parsed.pathname.slice(1)),
+    ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false" },
+  };
+}
+
+const connection = await mysql.createConnection(migrationConnectionOptions(databaseUrl));
 try {
   const database = drizzle(connection);
   await migrate(database, { migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)) });

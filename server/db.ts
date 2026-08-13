@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, gte, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2";
 import {
   employeeProfiles,
   announcements,
@@ -27,12 +28,39 @@ import {
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
+
+export function databaseConnectionOptions(connectionString: string): string | mysql.PoolOptions {
+  if (process.env.DATABASE_SSL?.toLowerCase() !== "true") return connectionString;
+
+  const parsed = new URL(connectionString);
+  if (parsed.protocol !== "mysql:" || !parsed.hostname || !parsed.pathname || parsed.pathname === "/") {
+    throw new Error("DATABASE_URL must be a valid mysql:// URL when DATABASE_SSL=true.");
+  }
+
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 3306,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: decodeURIComponent(parsed.pathname.slice(1)),
+    waitForConnections: true,
+    connectionLimit: Math.max(1, Number(process.env.DATABASE_CONNECTION_LIMIT || 10)),
+    ssl: { rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false" },
+  };
+}
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const options = databaseConnectionOptions(process.env.DATABASE_URL);
+      if (typeof options === "string") {
+        _db = drizzle(options);
+      } else {
+        _pool = mysql.createPool(options);
+        _db = drizzle({ client: _pool });
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
