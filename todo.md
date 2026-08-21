@@ -81,3 +81,6 @@
 - [x] Validate the deployment commands and deliver the final self-hosting runbook.
 - [x] Create a portable master prompt that captures the Welfare Pride intranet’s design, feature set, architecture, security boundaries, and deployment requirements.
 - [x] Include a complete categorized list of implemented portal features and reusable acceptance criteria in the master prompt deliverable.
+- [x] Add AI-powered document search and employee directory search requirements to the recreation master prompt.
+- [x] Add dynamic news feed and employee profile customization requirements to the recreation master prompt.
+- [x] Add explicit loading, hover, focus, feedback, motion, and responsive UI/UX requirements to the recreation master prompt.

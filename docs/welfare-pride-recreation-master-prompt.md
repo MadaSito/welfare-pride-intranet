@@ -26,6 +26,14 @@ Build a Welfare Pride experience that feels like a warm, secure, connected workp
 
 Use a persistent desktop sidebar with a compact mobile navigation pattern, a global top navigation bar, page title/breadcrumb area, consistent footer, keyboard-visible focus states, semantic landmarks, reduced-motion support, and responsive layouts at mobile, tablet, and desktop widths. Avoid fake activity, fake employee photos, fake metrics, and generic customer-style testimonials.
 
+## Interaction and UI/UX quality requirements
+
+Treat interaction design as a functional requirement, not a visual afterthought. Every asynchronous route, panel, form, table, card grid, search result, and mutation must communicate its state clearly. Use page-level skeletons for initial loading, local skeletons for loading subsections, concise inline validation messages, empty states with an authorized next action, retryable error states, and disabled controls with an explanation while an action is in progress. Never replace an entire screen with a spinner when a local loading state preserves useful context.
+
+Use deliberate, restrained feedback. Buttons and interactive cards must show visible hover, focus-visible, pressed, disabled, and loading states. Give clickable cards a discernible hover elevation or color treatment, make buttons slightly compress on active press, and retain strong keyboard focus rings. Use short opacity and transform transitions, normally 120–250 ms, with a decisive ease-out curve. Avoid layout-shifting animation, perpetual decorative motion, `scale(0)`, long easing, and animation of high-frequency keyboard operations. Respect `prefers-reduced-motion`: reduce or remove non-essential animation while retaining immediate state changes and accessible feedback.
+
+Use optimistic updates only for reversible, user-owned actions such as pinning a resource or marking a local preference. Use explicit pending states and server-confirmed refreshes for content publishing, credential changes, profile photo uploads, backup actions, restore actions, and authentication. Supply hover tooltips only when an icon’s accessible label is insufficient; never hide essential instructions solely in a tooltip. Ensure desktop pointer interactions have an equivalent keyboard and touch path.
+
 ## Required user roles and security model
 
 Implement `user` and `admin` roles. Server-side authorization is mandatory: hiding a user-interface element is never authorization. Every administrator endpoint and route must verify the authenticated user’s role.
@@ -61,7 +69,7 @@ Implement sanitized “Test Connection” diagnostics for Microsoft Graph, Share
 
 Build a searchable employee directory and individual profile experience. Employees can update their own bio, phone number, and profile photo. Administrators can edit any employee’s profile. Persist portal-owned overrides locally while using Microsoft Graph as the directory and organizational source of truth when configured.
 
-Use secure photo upload limits, MIME validation, authenticated same-origin delivery, persistent file storage, and a default placeholder state. Create live Graph synchronization with a clearly labeled cached fallback state if Graph is not configured or unavailable.
+Use secure photo upload limits, MIME validation, authenticated same-origin delivery, persistent file storage, and a default placeholder state. Create live Graph synchronization with a clearly labeled cached fallback state if Graph is not configured or unavailable. Add a self-service profile customization panel where employees can control approved portal-only preferences: dashboard greeting name, profile bio/phone/photo, time-zone preference, sidebar density, default dashboard widgets, news-feed topic preferences, and notification delivery choices. Do not let profile customization change role, manager, Entra identity, employee status, or organization-owned directory fields.
 
 ### 5. Organization chart
 
@@ -88,43 +96,55 @@ Employees can pin up to 12 HR resources. At dashboard render time, reauthorize e
 
 Place an accessible global search bar in the persistent top navigation. Search active employees, currently published announcements, and only HR documents that the current signed-in employee is authorized to see in SharePoint. Group results by People, Announcements, and HR Documents. Support keyboard navigation, loading state, empty state, bounded server-side queries, and deep links that open the selected employee profile or announcement detail.
 
-### 9. Important Links and company content
+### 9. AI-powered document search and employee directory intelligence
+
+Add an opt-in AI-powered discovery experience alongside ordinary global search. It must support natural-language searches such as “show the current onboarding policy,” “find HR documents about leave,” or “which employees support payroll?” Use hybrid retrieval: deterministic keyword/metadata matching plus semantic ranking over approved searchable excerpts and directory fields. Keep the AI query, retrieval, ranking, and permission checks on the server.
+
+For documents, retrieve only SharePoint files authorized for the signed-in user before generating embeddings, semantic candidates, snippets, summaries, or answers. Re-check delegated SharePoint access at query time and immediately exclude revoked, deleted, unpublished, or unauthorized sources. Use bounded excerpts and return a human-readable explanation, source citations, confidence/limitations where appropriate, and the original SharePoint document link. Do not train a provider on Welfare Pride data by default, retain raw HR-document content outside the organization’s approved storage policy, or expose a document title/snippet merely because it is semantically similar.
+
+For people, search only allowed directory/profile fields such as name, title, department, location, skills explicitly supplied or approved by the organization, manager hierarchy, and project-area tags. Do not infer, surface, or rank employees by protected, sensitive, medical, disciplinary, compensation, performance, age, birthday, or unapproved personal data. Clearly label AI-ranked people results as discovery assistance, link them to the standard directory profile, allow the employee to manage approved skill/topic tags, and provide a conventional filter/search fallback.
+
+### 10. Dynamic news feed, Important Links, and company content
+
+Build a personalized but administrator-governed internal news feed. Aggregate only published announcements, approved company-content updates, upcoming events, holiday reminders, and administrator-curated spotlight posts. Support audience targeting by role, department, location, and optional user-selected interests, while enforcing all audience rules on the server. Include chronological and “For you” modes, pinned or urgent posts, category filters, unread/read tracking, pagination or infinite loading with a visible loading state, and deep links to the canonical announcement/event/content detail page.
+
+The news feed must never fabricate posts or engagement. Administrators must be able to create, preview, schedule, publish, update, archive, pin, and audience-target real posts. Employees may control feed density, followed approved categories, and read-state preferences, but cannot alter publication state or audience targeting. Provide an explicit empty state when no relevant news is available.
 
 Create a categorized Important Links hub for Email, Microsoft 365 applications, corporate calendar, and administrator-configured internal/external resources. Make default initialization idempotent and database-constrained so concurrent first loads do not create duplicates.
 
 Create administrator-managed About Welfare Pride content blocks, company-founder biography templates, photo fields, milestone timelines, and reusable branded layouts. Do not seed organizational facts. Include clear administrator empty states until content is added.
 
-### 10. Secure Technology workspace
+### 11. Secure Technology workspace
 
 Build a Technology page for administrator-managed web application embeds. Enforce HTTPS, domain allowlisting, public-host validation, private-network/loopback rejection, sandboxed iframes, and a Content Security Policy that permits only configured, approved frame origins. Show setup guidance when no allowed application is configured. Document framing limitations caused by third-party `X-Frame-Options` or CSP.
 
-### 11. Personalized dashboard pins
+### 12. Personalized dashboard pins
 
 Persist dashboard pins by owner user ID with database uniqueness constraints. Employees must only read and mutate their own pins. Support a maximum of 12 pinned HR resources and 12 pinned upcoming events per employee. Validate that event pins refer to a current, published, upcoming event and reauthorize HR resources through SharePoint before display.
 
-### 12. Permission-aware AI assistant
+### 13. Permission-aware AI assistant
 
 Implement a branded assistant drawer or panel. It must use a provider-neutral OpenAI-compatible endpoint, model, and encrypted API-key configuration. An administrator can test the configured provider without exposing the key.
 
 The assistant may ground answers only in approved published company content, published announcements, and SharePoint HR documents authorized for the current signed-in user. Retrieve only bounded excerpts, reject unauthorized/unavailable documents, return source citations and links, limit conversation history, include privacy guidance, and decline to answer when no authorized source supports an answer. Protect provider configuration against SSRF: require HTTPS by default, validate hostnames, reject private, loopback, link-local, and metadata-service destinations unless an explicit local-development override is enabled.
 
-### 13. Multi-cloud backup center
+### 14. Multi-cloud backup center
 
 Create an administrator-only Backup Center that manages connection settings and operations for SharePoint, OneDrive, Google Drive, AWS S3, Wasabi, Backblaze B2, and Azure Blob Storage. Include destination configuration, sanitized connection tests, dry-run/test-backup actions, backup run status, retention/manifests, checksums, restore requests, restore verification, and run history.
 
 Use provider adapters with explicit public and secret configuration fields. Store credentials encrypted at rest. Implement a guarded restore flow with confirmation and administrator authorization. Record append-only application audit events for backup and restore state transitions. Keep mutable execution state separate from audit history. If the selected database does not support database triggers, state honestly that application-layer append-only behavior is enforced by controlled data-access paths; do not claim immutable database-trigger enforcement where it is unavailable.
 
-### 14. Scheduling
+### 15. Scheduling
 
 Implement a portable authenticated backup dispatcher endpoint, such as `POST /api/cron/dispatch`, protected by a separate `CRON_SECRET`. Store five-field UTC cron expressions in the database with validation, dispatch state, and idempotency protection. Support Docker/VPS scheduler services, external cron, Azure Container Apps scheduled jobs, or a comparable scheduler. Never depend on a platform-specific heartbeat service.
 
-### 15. Operational hardening and accessibility
+### 16. Operational hardening and accessibility
 
 Add production security headers and a restrictive Content Security Policy, preserve explicit allowed Technology iframe origins, suppress framework disclosure headers, offer a no-auth `/api/healthz` endpoint, and configure trusted-proxy behavior for reverse proxies. Add visible focus rings, semantic headings and landmarks, labels, descriptive buttons, keyboard navigation, and a global `prefers-reduced-motion` fallback.
 
 ## Data architecture
 
-Use MySQL migrations and a schema-first workflow. Include tables for users, local credentials, revocable sessions, encrypted Microsoft delegated sessions, durable SAML request correlations, employee profile overrides, announcements, events, holidays, Important Links, company content blocks, founders, milestones, Technology embeds, integration settings, diagnostics, backup destinations, backup runs, restore runs, append-only audit events, and dashboard pins.
+Use MySQL migrations and a schema-first workflow. Include tables for users, local credentials, revocable sessions, encrypted Microsoft delegated sessions, durable SAML request correlations, employee profile overrides, user interface preferences, user profile customization, user-managed skills/topics, news feed posts, news audiences, news read states, announcements, events, holidays, Important Links, company content blocks, founders, milestones, Technology embeds, integration settings, diagnostics, backup destinations, backup runs, restore runs, append-only audit events, and dashboard pins. For AI retrieval, include an approved-source index that records source identity, current authorization scope, indexing state, content hash, bounded searchable excerpt, vector or embedding reference if used, and expiration/revocation handling; never use the index as a substitute for live SharePoint authorization.
 
 Store dates/times in UTC at the persistence/API layer and render them in the user’s local time zone. Use foreign keys, unique constraints, indexes, ownership checks, and idempotent insert patterns where applicable. Keep SharePoint documents and Entra directory objects external rather than copying their permission model into the application database.
 
@@ -156,7 +176,7 @@ For a starting deployment of approximately 25 named staff and 5–10 concurrent 
 
 ## Required tests and validation
 
-Write and run focused unit tests for password hashing, first-owner closure, session/logout behavior, administrator authorization, credential encryption/redaction, birthday privacy, Technology embed validation, AI endpoint SSRF protections, AI retrieval isolation, SharePoint search identity scoping, dashboard-pin ownership and limits, backup checksum/authorization controls, Azure TLS connection configuration, and deployment portability checks.
+Write and run focused unit tests for password hashing, first-owner closure, session/logout behavior, administrator authorization, credential encryption/redaction, birthday privacy, Technology embed validation, AI endpoint SSRF protections, AI retrieval isolation, AI document-search permission revocation, semantic directory-search field restrictions, SharePoint search identity scoping, news-feed audience enforcement/read-state ownership, user-preference ownership, dashboard-pin ownership and limits, backup checksum/authorization controls, Azure TLS connection configuration, loading/error interaction states, and deployment portability checks.
 
 The final validation gate must pass:
 
@@ -168,7 +188,7 @@ The final validation gate must pass:
 - Shell syntax checks for installer, entrypoint, and backup scripts.
 - Git diff whitespace check.
 - A source/deployment scan proving no proprietary-platform runtime URLs, APIs, environment variables, plugins, hosted storage paths, or analytics hooks remain.
-- Desktop, tablet, and mobile visual checks for sign-in, shell, search, directory, calendars, HR repository, Technology workspace, backup center, and admin settings.
+- Desktop, tablet, and mobile visual checks for sign-in, shell, global and AI-powered search, directory, personalized profile settings, news feed, calendars, HR repository, Technology workspace, backup center, and admin settings.
 - A production artifact smoke test for health, first-owner readiness, security headers, static delivery, and protected API denial.
 
 ## Final acceptance criteria
@@ -181,25 +201,26 @@ Do not declare the project complete until all of the following are true:
 4. No birth year is exposed by any birthday API or UI.
 5. SharePoint remains the permission authority for HR documents in browsing, search, dashboard pins, and AI retrieval.
 6. Secret values are encrypted at rest and never echoed to the browser after persistence.
-7. The AI assistant provides source citations and does not retrieve another employee’s unauthorized document content.
+7. The AI assistant and AI-powered search provide source citations, honor current SharePoint authorization, and do not retrieve another employee’s unauthorized document content.
 8. Backup and restore actions are guarded, validated, auditable, and use real provider diagnostics/dry runs rather than fictional success data.
 9. The application can run on Docker, a Linux VPS, and Azure Container Apps without any proprietary runtime dependency.
-10. The completed source repository includes documentation, migrations, tests, deployment files, a health endpoint, and an operator-ready deployment runbook.
+10. The dynamic news feed honors publication status and server-enforced audience targeting, while employees own only their read-state and permitted preferences.
+11. The completed source repository includes documentation, migrations, tests, deployment files, a health endpoint, and an operator-ready deployment runbook.
 ```
 
 ## Categorized checklist for reuse
 
 | Category | Included capabilities |
 | --- | --- |
-| **Brand and experience** | Welfare Pride logo system, exact `#5A92C9` blue, exact `#D58240` orange, Roboto, responsive shell, sidebar, mobile navigation, global search, footer, accessibility, reduced motion |
+| **Brand and experience** | Welfare Pride logo system, exact `#5A92C9` blue, exact `#D58240` orange, Roboto, responsive shell, sidebar, mobile navigation, global search, hover/focus/pressed states, loading skeletons, accessible errors, feedback, footer, accessibility, reduced motion |
 | **Authentication** | One-time tokenless local owner setup, local login, lockout, secure revocable sessions, OIDC, OAuth 2.0, SAML 2.0, silent work-session sign-in, PKCE, SAML correlation |
-| **People** | Employee directory, self-service profile edit, admin profile override, photo upload, Microsoft Graph synchronization, live organization chart |
-| **Content and calendars** | Holidays, birth-year-free birthdays, announcements, events, month views, categories, publishing and archive controls |
-| **HR and search** | Delegated SharePoint HR repository, permission-preserving document open, global search across people/announcements/authorized documents |
+| **People** | Employee directory, self-service profile edit, profile preferences, permitted skill/topic tags, admin profile override, photo upload, Microsoft Graph synchronization, live organization chart |
+| **Content and calendars** | Dynamic audience-governed news feed, holidays, birth-year-free birthdays, announcements, events, month views, categories, publishing, scheduling, pinning, and archive controls |
+| **HR and search** | Delegated SharePoint HR repository, permission-preserving document open, global keyword search, AI-powered hybrid document retrieval, and AI-assisted directory discovery with field restrictions |
 | **Company information** | Important Links, About content blocks, founder profiles, milestone timeline, administrator-managed content and empty states |
 | **Technology** | HTTPS-only, allowlisted, sandboxed iframe workspace and CSP guidance |
 | **Personalization** | Per-user pinned HR resources and upcoming events, ownership checks, 12-item caps, reauthorization and unavailable states |
-| **AI** | Provider-neutral OpenAI-compatible configuration, encrypted key, secure test, cited answers, approved-content and delegated-SharePoint retrieval, SSRF protection |
+| **AI** | Provider-neutral OpenAI-compatible configuration, encrypted key, secure test, cited assistant answers, hybrid semantic document search, restricted directory intelligence, approved-content and delegated-SharePoint retrieval, SSRF protection, revocation-aware retrieval |
 | **Backup administration** | Multi-cloud destinations, diagnostics, dry runs, checksums, manifests, restore confirmation/verification, append-only audit stream, portable scheduler |
 | **Administration** | Encrypted integration settings, sanitized diagnostics, role-protected settings, backup, restore, and content management |
 | **Data and operations** | MySQL migrations, UTC timestamps, health endpoint, security headers, TLS support, Docker, Docker Compose, VPS systemd, Azure Container Apps, Azure Files, ACR, Key Vault, Container Apps Jobs |
