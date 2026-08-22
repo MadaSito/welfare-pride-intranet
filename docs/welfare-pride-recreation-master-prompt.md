@@ -71,6 +71,10 @@ Build a searchable employee directory and individual profile experience. Employe
 
 Use secure photo upload limits, MIME validation, authenticated same-origin delivery, persistent file storage, and a default placeholder state. Create live Graph synchronization with a clearly labeled cached fallback state if Graph is not configured or unavailable. Add a self-service profile customization panel where employees can control approved portal-only preferences: dashboard greeting name, profile bio/phone/photo, time-zone preference, sidebar density, default dashboard widgets, news-feed topic preferences, and notification delivery choices. Do not let profile customization change role, manager, Entra identity, employee status, or organization-owned directory fields.
 
+### Employee directory fields and technical-skill tags
+
+Include **Department** and **Role** as standard directory-profile fields. Treat both as organization-owned values synchronized from Microsoft Graph or maintained by an authorized administrator; ordinary employees may view them but cannot edit them. Add an interactive **Technical Skills** section to each employee profile. Employees may select and remove technical-skill tags from an administrator-managed taxonomy with type-ahead search, grouped categories, accessible chips, keyboard removal, clear empty state, and save/cancel feedback. Permit employee-submitted skill suggestions only through an approval workflow; do not allow uncontrolled free-text tags to become directory search data automatically. Administrators can manage the taxonomy, approve or remove submitted skills, and correct profile skills. Skills must be voluntary, relevant to work, visible only to authenticated employees by default, and excluded from sensitive inference or performance evaluation.
+
 ### 5. Organization chart
 
 Render a searchable, navigable organizational chart sourced from Microsoft Graph manager/direct-report data. Support zoom, pan, keyboard-friendly search, employee detail cards, manager and direct-report hierarchy, and graceful unconfigured/error/cached data states. Do not reimplement the organization’s Microsoft identity permissions in the browser.
@@ -98,13 +102,23 @@ Place an accessible global search bar in the persistent top navigation. Search a
 
 ### 9. AI-powered document search and employee directory intelligence
 
+**OpenAI is the primary configured AI provider.** Use the OpenAI API from the server only, with an encrypted API key, explicit model configuration, connection diagnostics, spend and usage safeguards, and a provider abstraction only when a future approved fallback is required. Do not silently route Welfare Pride content to an unapproved model or provider.
+
 Add an opt-in AI-powered discovery experience alongside ordinary global search. It must support natural-language searches such as “show the current onboarding policy,” “find HR documents about leave,” or “which employees support payroll?” Use hybrid retrieval: deterministic keyword/metadata matching plus semantic ranking over approved searchable excerpts and directory fields. Keep the AI query, retrieval, ranking, and permission checks on the server.
 
 For documents, retrieve only SharePoint files authorized for the signed-in user before generating embeddings, semantic candidates, snippets, summaries, or answers. Re-check delegated SharePoint access at query time and immediately exclude revoked, deleted, unpublished, or unauthorized sources. Use bounded excerpts and return a human-readable explanation, source citations, confidence/limitations where appropriate, and the original SharePoint document link. Do not train a provider on Welfare Pride data by default, retain raw HR-document content outside the organization’s approved storage policy, or expose a document title/snippet merely because it is semantically similar.
 
 For people, search only allowed directory/profile fields such as name, title, department, location, skills explicitly supplied or approved by the organization, manager hierarchy, and project-area tags. Do not infer, surface, or rank employees by protected, sensitive, medical, disciplinary, compensation, performance, age, birthday, or unapproved personal data. Clearly label AI-ranked people results as discovery assistance, link them to the standard directory profile, allow the employee to manage approved skill/topic tags, and provide a conventional filter/search fallback.
 
+### AI document-search retention and provider controls
+
+Apply a strict **30-day document-search data-retention policy**. Retain locally stored search queries, retrieval logs, generated snippets, embeddings or vector references, extracted SharePoint text, cached document metadata, and AI search audit records for no more than 30 days from creation or last authorized refresh. Permanently purge those records through an automated daily retention job. Immediately delete or invalidate all related cached content and indexes when access is revoked, a document is removed, a source is unpublished, or an employee account is deactivated. Keep only minimal, non-content operational aggregates beyond 30 days where needed for security/audit reporting, with documented fields and authorization.
+
+Do not upload full SharePoint files to stateful provider file stores or provider-hosted vector stores by default. Send only the minimum bounded text required for an authorized embedding or response request, use the organization’s approved OpenAI API account and data-processing terms, and document any provider-side processing or retention outside the application’s direct control. If the organization cannot obtain assurance compatible with the 30-day policy, disable semantic document search and retain deterministic permission-preserving search only.
+
 ### 10. Dynamic news feed, Important Links, and company content
+
+The dynamic news feed must include the mandatory categories **Company Announcements**, **Departmental Updates**, and **Upcoming Social Events**, with stable category identifiers, readable labels, distinct icons or visual cues, and category-specific empty states. Administrators must be able to create, preview, schedule, publish, update, archive, pin, categorize, and audience-target real posts. Employees may control feed density, followed approved categories, and read-state preferences, but cannot alter publication state, mandatory category definitions, or audience targeting.
 
 Build a personalized but administrator-governed internal news feed. Aggregate only published announcements, approved company-content updates, upcoming events, holiday reminders, and administrator-curated spotlight posts. Support audience targeting by role, department, location, and optional user-selected interests, while enforcing all audience rules on the server. Include chronological and “For you” modes, pinned or urgent posts, category filters, unread/read tracking, pagination or infinite loading with a visible loading state, and deep links to the canonical announcement/event/content detail page.
 
@@ -123,6 +137,8 @@ Build a Technology page for administrator-managed web application embeds. Enforc
 Persist dashboard pins by owner user ID with database uniqueness constraints. Employees must only read and mutate their own pins. Support a maximum of 12 pinned HR resources and 12 pinned upcoming events per employee. Validate that event pins refer to a current, published, upcoming event and reauthorize HR resources through SharePoint before display.
 
 ### 13. Permission-aware AI assistant
+
+Configure OpenAI as the primary assistant provider with a server-only encrypted API key, explicit model configuration, least-privilege network access, usage safeguards, and a sanitized administrator connection test. Retain an optional provider abstraction only for a future organization-approved replacement.
 
 Implement a branded assistant drawer or panel. It must use a provider-neutral OpenAI-compatible endpoint, model, and encrypted API-key configuration. An administrator can test the configured provider without exposing the key.
 
@@ -143,6 +159,8 @@ Implement a portable authenticated backup dispatcher endpoint, such as `POST /ap
 Add production security headers and a restrictive Content Security Policy, preserve explicit allowed Technology iframe origins, suppress framework disclosure headers, offer a no-auth `/api/healthz` endpoint, and configure trusted-proxy behavior for reverse proxies. Add visible focus rings, semantic headings and landmarks, labels, descriptive buttons, keyboard navigation, and a global `prefers-reduced-motion` fallback.
 
 ## Data architecture
+
+Include schema support for organization-owned department and role fields, a technical-skill taxonomy, employee skill selections, skill approval requests, news categories, and retention-enforced AI search records. Each indexed AI source must record source identity, current authorization scope, indexing state, content hash, bounded searchable excerpt, vector or embedding reference if used, expiration timestamp, purge status, and revocation handling. Never use the index as a substitute for live SharePoint authorization.
 
 Use MySQL migrations and a schema-first workflow. Include tables for users, local credentials, revocable sessions, encrypted Microsoft delegated sessions, durable SAML request correlations, employee profile overrides, user interface preferences, user profile customization, user-managed skills/topics, news feed posts, news audiences, news read states, announcements, events, holidays, Important Links, company content blocks, founders, milestones, Technology embeds, integration settings, diagnostics, backup destinations, backup runs, restore runs, append-only audit events, and dashboard pins. For AI retrieval, include an approved-source index that records source identity, current authorization scope, indexing state, content hash, bounded searchable excerpt, vector or embedding reference if used, and expiration/revocation handling; never use the index as a substitute for live SharePoint authorization.
 
@@ -176,6 +194,8 @@ For a starting deployment of approximately 25 named staff and 5–10 concurrent 
 
 ## Required tests and validation
 
+Add focused coverage for OpenAI endpoint and API-key protections, 30-day AI-search expiry and purge behavior, mandatory news-category validation, department/role edit authorization, technical-skill taxonomy and approval controls, and the existing SharePoint access checks used by AI search.
+
 Write and run focused unit tests for password hashing, first-owner closure, session/logout behavior, administrator authorization, credential encryption/redaction, birthday privacy, Technology embed validation, AI endpoint SSRF protections, AI retrieval isolation, AI document-search permission revocation, semantic directory-search field restrictions, SharePoint search identity scoping, news-feed audience enforcement/read-state ownership, user-preference ownership, dashboard-pin ownership and limits, backup checksum/authorization controls, Azure TLS connection configuration, loading/error interaction states, and deployment portability checks.
 
 The final validation gate must pass:
@@ -206,6 +226,9 @@ Do not declare the project complete until all of the following are true:
 9. The application can run on Docker, a Linux VPS, and Azure Container Apps without any proprietary runtime dependency.
 10. The dynamic news feed honors publication status and server-enforced audience targeting, while employees own only their read-state and permitted preferences.
 11. The completed source repository includes documentation, migrations, tests, deployment files, a health endpoint, and an operator-ready deployment runbook.
+12. OpenAI is configured only on the server, AI document-search data is purged after 30 days or earlier upon revocation, and full SharePoint files are not placed in provider-managed file/vector stores by default.
+13. Company Announcements, Departmental Updates, and Upcoming Social Events are required news-feed categories with server-enforced audience rules.
+14. Department and Role remain organization-owned fields, while employee technical skills use the controlled taxonomy and approval workflow.
 ```
 
 ## Categorized checklist for reuse
@@ -215,12 +238,15 @@ Do not declare the project complete until all of the following are true:
 | **Brand and experience** | Welfare Pride logo system, exact `#5A92C9` blue, exact `#D58240` orange, Roboto, responsive shell, sidebar, mobile navigation, global search, hover/focus/pressed states, loading skeletons, accessible errors, feedback, footer, accessibility, reduced motion |
 | **Authentication** | One-time tokenless local owner setup, local login, lockout, secure revocable sessions, OIDC, OAuth 2.0, SAML 2.0, silent work-session sign-in, PKCE, SAML correlation |
 | **People** | Employee directory, self-service profile edit, profile preferences, permitted skill/topic tags, admin profile override, photo upload, Microsoft Graph synchronization, live organization chart |
+| **Employee profile governance** | Organization-owned Department and Role; interactive employee-selected Technical Skills; administrator-controlled taxonomy; approval workflow for suggested skills; no uncontrolled free-text search tags |
 | **Content and calendars** | Dynamic audience-governed news feed, holidays, birth-year-free birthdays, announcements, events, month views, categories, publishing, scheduling, pinning, and archive controls |
+| **Mandatory news categories** | Company Announcements, Departmental Updates, Upcoming Social Events, server-enforced audience targeting, category filters, read state, and personalized feed preferences |
 | **HR and search** | Delegated SharePoint HR repository, permission-preserving document open, global keyword search, AI-powered hybrid document retrieval, and AI-assisted directory discovery with field restrictions |
 | **Company information** | Important Links, About content blocks, founder profiles, milestone timeline, administrator-managed content and empty states |
 | **Technology** | HTTPS-only, allowlisted, sandboxed iframe workspace and CSP guidance |
 | **Personalization** | Per-user pinned HR resources and upcoming events, ownership checks, 12-item caps, reauthorization and unavailable states |
 | **AI** | Provider-neutral OpenAI-compatible configuration, encrypted key, secure test, cited assistant answers, hybrid semantic document search, restricted directory intelligence, approved-content and delegated-SharePoint retrieval, SSRF protection, revocation-aware retrieval |
+| **OpenAI governance** | OpenAI primary provider, encrypted server-only API key, usage safeguards, minimum necessary bounded excerpts, no default provider file/vector store uploads, 30-day document-search retention with daily purge and revocation-triggered invalidation |
 | **Backup administration** | Multi-cloud destinations, diagnostics, dry runs, checksums, manifests, restore confirmation/verification, append-only audit stream, portable scheduler |
 | **Administration** | Encrypted integration settings, sanitized diagnostics, role-protected settings, backup, restore, and content management |
 | **Data and operations** | MySQL migrations, UTC timestamps, health endpoint, security headers, TLS support, Docker, Docker Compose, VPS systemd, Azure Container Apps, Azure Files, ACR, Key Vault, Container Apps Jobs |

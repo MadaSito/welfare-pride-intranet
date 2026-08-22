@@ -84,3 +84,6 @@
 - [x] Add AI-powered document search and employee directory search requirements to the recreation master prompt.
 - [x] Add dynamic news feed and employee profile customization requirements to the recreation master prompt.
 - [x] Add explicit loading, hover, focus, feedback, motion, and responsive UI/UX requirements to the recreation master prompt.
+- [x] Set OpenAI as the primary AI provider and require a strict 30-day document-search retention policy in the recreation master prompt.
+- [x] Define company announcements, departmental updates, and upcoming social events as mandatory dynamic-news categories.
+- [x] Add department, role, and interactive employee-managed technical-skill tags to the recreation master prompt.
