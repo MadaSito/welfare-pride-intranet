@@ -44,9 +44,9 @@ describe("portable local authentication", () => {
 
   it("reports setup as required only while no local credential exists", async () => {
     mocks.hasLocalCredential.mockResolvedValue(false);
-    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: true });
+    await expect(localAuthRouter.createCaller(context()).status()).resolves.toMatchObject({ setupRequired: true });
     mocks.hasLocalCredential.mockResolvedValue(true);
-    await expect(localAuthRouter.createCaller(context()).status()).resolves.toEqual({ setupRequired: false });
+    await expect(localAuthRouter.createCaller(context()).status()).resolves.toMatchObject({ setupRequired: false });
   });
 
   it("closes setup permanently when a local credential already exists", async () => {
@@ -60,15 +60,15 @@ describe("portable local authentication", () => {
     mocks.hasLocalCredential.mockResolvedValue(false);
     mocks.createInitialLocalAdmin.mockResolvedValue(user);
     const ctx = context();
-    await expect(localAuthRouter.createCaller(ctx).setupOwner({ name: "Portal Owner", email: "Owner@Example.org", password: "ValidPassword!123" })).resolves.toMatchObject({ success: true, user });
+    await expect(localAuthRouter.createCaller(ctx).setupOwner({ name: "Portal Owner", email: "Owner@Example.org", password: "ValidPassword!123" })).resolves.toMatchObject({ success: true, authState: "mfa_enrollment_required" });
     expect(mocks.createInitialLocalAdmin).toHaveBeenCalledWith(expect.objectContaining({ email: "owner@example.org", passwordHash: "hash", passwordSalt: "salt" }));
-    expect(mocks.issueAppSession).toHaveBeenCalledWith(ctx.req, ctx.res, 41);
+    expect(mocks.issueAppSession).toHaveBeenCalledWith(ctx.req, ctx.res, 41, "mfa_enrollment_required");
   });
 
   it("increments failed login attempts without revealing account existence", async () => {
     mocks.getLocalCredentialByEmail.mockResolvedValue({ credential: { id: 8, passwordHash: "hash", passwordSalt: "salt", failedAttempts: 2, lockedUntil: null }, user: { id: 41 } });
     mocks.verifyPassword.mockResolvedValue(false);
-    await expect(localAuthRouter.createCaller(context()).login({ email: "owner@example.org", password: "incorrect" })).rejects.toMatchObject({ code: "UNAUTHORIZED", message: "Email or password is incorrect." });
+    await expect(localAuthRouter.createCaller(context()).login({ identifier: "owner@example.org", password: "incorrect" })).rejects.toMatchObject({ code: "UNAUTHORIZED", message: "Username or password is incorrect." });
     expect(mocks.recordLocalLoginFailure).toHaveBeenCalledWith(8, 3, null);
   });
 });

@@ -148,8 +148,11 @@ export async function createInitialLocalAdmin(input: {
   openId: string;
   name: string;
   email: string;
+  credentialLogin?: string;
   passwordHash: string;
   passwordSalt: string;
+  mustChangePassword?: boolean;
+  mfaRequired?: boolean;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -168,9 +171,11 @@ export async function createInitialLocalAdmin(input: {
     if (!user) throw new Error("Owner account could not be created");
     await tx.insert(localCredentials).values({
       userId: user.id,
-      email: input.email,
+      email: input.credentialLogin ?? input.email,
       passwordHash: input.passwordHash,
       passwordSalt: input.passwordSalt,
+      mustChangePassword: input.mustChangePassword ?? false,
+      mfaRequired: input.mfaRequired ?? true,
     });
     await tx.insert(employeeProfiles).values({
       userId: user.id,
@@ -206,10 +211,90 @@ export async function clearLocalLoginFailures(credentialId: number) {
   await db.update(localCredentials).set({ failedAttempts: 0, lockedUntil: null }).where(eq(localCredentials.id, credentialId));
 }
 
+export async function getLocalCredentialByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [credential] = await db.select().from(localCredentials).where(eq(localCredentials.userId, userId)).limit(1);
+  return credential;
+}
+
+export async function updateLocalPassword(input: {
+  credentialId: number;
+  passwordHash: string;
+  passwordSalt: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({
+    passwordHash: input.passwordHash,
+    passwordSalt: input.passwordSalt,
+    mustChangePassword: false,
+    passwordChangedAt: new Date(),
+    failedAttempts: 0,
+    lockedUntil: null,
+  }).where(eq(localCredentials.id, input.credentialId));
+}
+
+export async function savePendingTotpSecret(credentialId: number, encryptedSecret: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({
+    totpSecretEncrypted: encryptedSecret,
+    mfaEnabled: false,
+    mfaEnrolledAt: null,
+  }).where(eq(localCredentials.id, credentialId));
+}
+
+export async function enableLocalMfa(input: {
+  credentialId: number;
+  encryptedRecoveryCodes: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({
+    recoveryCodesEncrypted: input.encryptedRecoveryCodes,
+    mfaEnabled: true,
+    mfaRequired: true,
+    mfaEnrolledAt: new Date(),
+  }).where(eq(localCredentials.id, input.credentialId));
+}
+
+export async function consumeRecoveryCode(credentialId: number, encryptedRecoveryCodes: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({ recoveryCodesEncrypted: encryptedRecoveryCodes }).where(eq(localCredentials.id, credentialId));
+}
+
+export async function setLocalMfaRequired(input: { userId: number; required: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(localCredentials).set({ mfaRequired: input.required }).where(eq(localCredentials.userId, input.userId));
+}
+
+export async function listLocalMfaPolicies() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: localCredentials.email,
+      role: users.role,
+      mfaRequired: localCredentials.mfaRequired,
+      mfaEnabled: localCredentials.mfaEnabled,
+      mfaEnrolledAt: localCredentials.mfaEnrolledAt,
+      mustChangePassword: localCredentials.mustChangePassword,
+    })
+    .from(localCredentials)
+    .innerJoin(users, eq(localCredentials.userId, users.id))
+    .orderBy(asc(localCredentials.email));
+}
+
 export async function createAppSessionRecord(input: {
   userId: number;
   tokenHash: string;
   expiresAt: Date;
+  authState?: "full" | "password_change_required" | "mfa_enrollment_required" | "mfa_verification_required";
   userAgentHash?: string | null;
   ipHash?: string | null;
 }) {
@@ -240,6 +325,12 @@ export async function revokeAppSession(tokenHash: string) {
   const db = await getDb();
   if (!db) return;
   await db.update(appSessions).set({ revokedAt: new Date() }).where(eq(appSessions.tokenHash, tokenHash));
+}
+
+export async function revokeAllAppSessionsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(appSessions).set({ revokedAt: new Date() }).where(and(eq(appSessions.userId, userId), isNull(appSessions.revokedAt)));
 }
 
 export async function getIntegrationSettingByProvider(provider: string) {

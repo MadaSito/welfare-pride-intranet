@@ -44,9 +44,9 @@ describe("standalone deployment package", () => {
     expect(compose).not.toContain('"3000:3000"');
   });
 
-  it("documents independent first-owner, session, cron, and database secrets without committing values", () => {
+  it("documents independent bootstrap, session, cron, and database secrets without committing values", () => {
     const template = read("deploy/hostinger/environment.template");
-    for (const key of ["DATABASE_URL", "JWT_SECRET", "CRON_SECRET"]) expect(template).toContain(`${key}=`);
+    for (const key of ["DATABASE_URL", "JWT_SECRET", "CRON_SECRET", "BOOTSTRAP_DEFAULT_ADMIN"]) expect(template).toContain(`${key}=`);
     expect(template).toContain("replace-with-");
     expect(template).not.toMatch(/[A-Fa-f0-9]{64}/);
   });
@@ -60,5 +60,15 @@ describe("standalone deployment package", () => {
     expect(plugin).toContain("noopener noreferrer");
     expect(plugin).toContain("'default' => ''");
     expect(plugin).toContain("https://intranet.example.org");
+  });
+
+  it("includes a generic installer, local MFA controls, and Git-backed operator context", () => {
+    expect(read("deploy/install.sh")).toContain("hostinger/install.sh");
+    expect(read("server/routers/localAuth.ts")).toContain("setMfaRequirement");
+    expect(read("client/src/pages/AdminSettings.tsx")).toContain("Local authentication and MFA");
+    expect(read("project-context/README.md")).toContain("reconstruction context");
+    expect(read("session-worklogs/README.md")).toMatch(/sanitized/i);
+    expect(statSync(path.join(root, "docs/standalone-deployment-guide.pdf")).size).toBeGreaterThan(10_000);
+    expect(read("docs/standalone-deployment-guide.md")).toContain("BOOTSTRAP_DEFAULT_ADMIN");
   });
 });

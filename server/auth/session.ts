@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { parse as parseCookieHeader } from "cookie";
 import { COOKIE_NAME } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
-import type { User } from "../../drizzle/schema";
+import type { AppSession, User } from "../../drizzle/schema";
 import * as db from "../db";
 import { getSessionCookieOptions } from "../_core/cookies";
 
@@ -22,7 +22,15 @@ function fingerprint(value: string | undefined) {
   return value ? createHash("sha256").update(value).digest("hex") : null;
 }
 
-export async function issueAppSession(req: Request, res: Response, userId: number) {
+export type LocalAuthState = AppSession["authState"];
+
+export type AuthenticatedSession = {
+  user: User;
+  authState: LocalAuthState;
+  sessionId: number;
+};
+
+export async function issueAppSession(req: Request, res: Response, userId: number, authState: LocalAuthState = "full") {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + APP_SESSION_MAX_AGE_MS);
   const forwarded = req.headers["x-forwarded-for"];
@@ -31,6 +39,7 @@ export async function issueAppSession(req: Request, res: Response, userId: numbe
     userId,
     tokenHash: hashSessionToken(token),
     expiresAt,
+    authState,
     userAgentHash: fingerprint(req.headers["user-agent"]),
     ipHash: fingerprint(clientIp),
   });
@@ -43,11 +52,11 @@ export async function revokeRequestSession(req: Request) {
   if (token) await db.revokeAppSession(hashSessionToken(token));
 }
 
-export async function authenticateRequest(req: Request): Promise<User> {
+export async function authenticateRequest(req: Request): Promise<AuthenticatedSession> {
   const token = requestToken(req);
   if (!token) throw ForbiddenError("Missing application session");
   const result = await db.getActiveAppSession(hashSessionToken(token));
   if (!result) throw ForbiddenError("Invalid or expired application session");
   void db.touchAppSession(result.session.id);
-  return result.user;
+  return { user: result.user, authState: result.session.authState, sessionId: result.session.id };
 }

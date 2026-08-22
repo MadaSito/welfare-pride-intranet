@@ -51,6 +51,9 @@ export const localCredentials = mysqlTable(
     totpSecretEncrypted: text("totpSecretEncrypted"),
     recoveryCodesEncrypted: text("recoveryCodesEncrypted"),
     mfaEnabled: boolean("mfaEnabled").default(false).notNull(),
+    mfaRequired: boolean("mfaRequired").default(false).notNull(),
+    mfaEnrolledAt: timestamp("mfaEnrolledAt"),
+    mustChangePassword: boolean("mustChangePassword").default(false).notNull(),
     passwordChangedAt: timestamp("passwordChangedAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -72,6 +75,9 @@ export const appSessions = mysqlTable(
     expiresAt: timestamp("expiresAt").notNull(),
     lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
     revokedAt: timestamp("revokedAt"),
+    authState: mysqlEnum("authState", ["full", "password_change_required", "mfa_enrollment_required", "mfa_verification_required"])
+      .default("full")
+      .notNull(),
     userAgentHash: varchar("userAgentHash", { length: 64 }),
     ipHash: varchar("ipHash", { length: 64 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

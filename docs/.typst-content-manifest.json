@@ -1,0 +1,11 @@
+{
+  "task_kind": "markdown-to-pdf",
+  "output": "pdf",
+  "signals": [],
+  "hard_constraints": ["operator deployment guide", "markdown source companion", "code blocks", "tables"],
+  "content_features": {
+    "code_blocks": 8,
+    "defined_terms": 6,
+    "portrait_images": 0
+  }
+}

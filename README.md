@@ -4,11 +4,11 @@ Welfare Pride is a standalone, self-hosted employee intranet built with React, E
 
 ## Core capabilities
 
-The portal includes local first-owner setup, local administrator login, optional Microsoft Entra OIDC and SAML sign-in, employee profiles, a live organizational chart, announcements, events, holidays, birthdays without birth years, SharePoint-authorized HR documents, company pages, secure Technology embeds, multi-cloud backup administration, employee dashboard pins, unified search, and a provider-neutral cited AI assistant.
+The portal includes local-first access with forced bootstrap-password rotation and TOTP MFA, optional Microsoft Entra OIDC and SAML sign-in, employee profiles, a live organizational chart, announcements, events, holidays, birthdays without birth years, SharePoint-authorized HR documents, company pages, secure Technology embeds, multi-cloud backup administration, employee dashboard pins, unified search, and a provider-neutral cited AI assistant.
 
 | Boundary | Implementation |
 | --- | --- |
-| Authentication | Revocable HTTP-only database sessions; local owner account; optional Entra OIDC and SAML |
+| Authentication | Revocable HTTP-only database sessions; forced first-login password change; TOTP MFA and recovery codes; optional Entra OIDC and SAML |
 | Authorization | Typed protected and administrator procedures; SharePoint remains the HR document permission authority |
 | Secrets | AES-256-GCM encryption using `JWT_SECRET`; plaintext saved secrets are never returned to the browser |
 | Storage | S3-compatible object storage or a persistent local VPS volume |
@@ -26,16 +26,16 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Set `DATABASE_URL` and `JWT_SECRET` before opening the application. On first launch, create the local owner account immediately; setup then closes automatically. Development defaults to local file storage under `data/uploads`.
+Set `DATABASE_URL` and `JWT_SECRET` before opening the application. For a controlled fresh-install bootstrap, set `BOOTSTRAP_DEFAULT_ADMIN=true`; the temporary `admin` / `admin` account must change its password and enroll MFA before it can access the portal. Development defaults to local file storage under `data/uploads`.
 
 ## Production
 
-Read [`docs/azure-docker-vps-deployment-runbook.md`](docs/azure-docker-vps-deployment-runbook.md) for Azure Container Apps, Docker, Linux VPS, first-login, DNS, TLS, cron, capacity, and rollout instructions. Read [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) for Hostinger-specific deployment and WordPress-link guidance. The included installer supports:
+Read [`docs/standalone-deployment-guide.md`](docs/standalone-deployment-guide.md) or its [PDF version](docs/standalone-deployment-guide.pdf) for the current Docker, Linux VPS, bootstrap-account, local MFA, Azure-ready MySQL TLS, scheduling, and operations instructions. The included installer supports:
 
 ```bash
-deploy/hostinger/install.sh --mode docker --domain intranet.example.org
-deploy/hostinger/install.sh --mode native
-deploy/hostinger/install.sh --mode managed
+deploy/install.sh --mode docker --domain intranet.example.org
+deploy/install.sh --mode native --database-url 'mysql://user:password@127.0.0.1:3306/welfare_pride'
+deploy/install.sh --mode managed --database-url 'mysql://user:password@host:3306/welfare_pride'
 ```
 
 ## Validation
@@ -53,12 +53,16 @@ Database schema changes must be generated with `pnpm db:generate`, reviewed in `
 | Document | Purpose |
 | --- | --- |
 | [`docs/hostinger-deployment.md`](docs/hostinger-deployment.md) | Self-hosting, WordPress connection, and first login |
+| [`docs/standalone-deployment-guide.md`](docs/standalone-deployment-guide.md) | Current Docker, bare-metal VPS, local MFA, bootstrap, scheduling, and operations guide |
+| [`docs/standalone-deployment-guide.pdf`](docs/standalone-deployment-guide.pdf) | Print-ready PDF version of the standalone deployment guide |
 | [`docs/azure-docker-vps-deployment-runbook.md`](docs/azure-docker-vps-deployment-runbook.md) | Azure Container Apps, Docker, Linux VPS, capacity, and release procedures |
 | [`docs/standalone-release-validation.md`](docs/standalone-release-validation.md) | Test, build, audit, production-smoke, and deployment validation evidence |
 | [`docs/portable-architecture.md`](docs/portable-architecture.md) | Runtime and security architecture |
 | [`docs/production-rollout-guide.md`](docs/production-rollout-guide.md) | Microsoft Entra, Graph, SharePoint, and cloud setup |
 | [`docs/technology-embed-security.md`](docs/technology-embed-security.md) | Secure iframe allowlisting and CSP guidance |
 | [`docs/backup-audit-and-recovery.md`](docs/backup-audit-and-recovery.md) | Backup and restore controls |
+| [`project-context/`](project-context/) | Git-backed architecture and reconstruction context |
+| [`session-worklogs/`](session-worklogs/) | Git-backed sanitized implementation and release worklogs |
 
 ## Brand system
 

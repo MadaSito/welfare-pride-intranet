@@ -110,3 +110,7 @@ temp/
 .webdev/
 
 .project-config.json
+
+# Exclude development metadata and local runtime logs from standalone releases
+.project-config.json
+*.log

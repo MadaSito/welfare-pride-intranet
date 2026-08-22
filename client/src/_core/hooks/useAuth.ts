@@ -40,11 +40,13 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
+    const auth = meQuery.data;
     return {
-      user: meQuery.data ?? null,
+      user: auth?.user ?? null,
+      authState: auth?.authState ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      isAuthenticated: Boolean(auth?.user && auth.authState === "full"),
     };
   }, [
     meQuery.data,

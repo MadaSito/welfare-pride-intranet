@@ -10,6 +10,7 @@ import { registerMicrosoftAuthRoutes } from "../auth/microsoft";
 import { scheduledBackupHandler } from "../scheduled/backup";
 import * as db from "../db";
 import { registerFileRoutes } from "../files";
+import { ensureBootstrapAdministrator } from "../auth/bootstrap";
 
 let frameOriginCache: { expiresAt: number; origins: string[] } = { expiresAt: 0, origins: [] };
 
@@ -47,6 +48,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  await ensureBootstrapAdministrator();
   const app = express();
   const server = createServer(app);
   app.disable("x-powered-by");

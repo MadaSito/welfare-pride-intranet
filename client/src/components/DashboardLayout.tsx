@@ -17,6 +17,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+import { LocalSecurityCompletion } from "./LocalSecurityCompletion";
 
 type NavItem = { icon: LucideIcon; label: string; path: string };
 type NavGroup = { label: string; items: NavItem[] };
@@ -84,7 +85,7 @@ function SignInScreen() {
   const submitLocalAccess = (event: React.FormEvent) => {
     event.preventDefault();
     if (setupRequired) setupOwner.mutate({ name: ownerName, email, password });
-    else localLogin.mutate({ email, password });
+    else localLogin.mutate({ identifier: email, password });
   };
 
   useEffect(() => {
@@ -137,7 +138,7 @@ function SignInScreen() {
               <div><p className="font-semibold text-foreground">{setupRequired ? "Create the owner account" : "Local administrator sign in"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{setupRequired ? "This one-time step unlocks Integration Settings before Entra is available." : "Use the owner credentials created during first-time setup."}</p></div>
             </div>
             {setupRequired ? <div className="space-y-2"><Label htmlFor="owner-name">Owner name</Label><Input id="owner-name" autoComplete="name" value={ownerName} onChange={event => setOwnerName(event.target.value)} required /></div> : null}
-            <div className="space-y-2"><Label htmlFor="local-email">Email address</Label><Input id="local-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
+            <div className="space-y-2"><Label htmlFor="local-email">Email address or username</Label><Input id="local-email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
             <div className="space-y-2"><Label htmlFor="local-password">Password</Label><Input id="local-password" type="password" autoComplete={setupRequired ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} minLength={setupRequired ? 12 : 1} required /><p className="text-xs text-muted-foreground">{setupRequired ? "Use 12–128 characters with uppercase, lowercase, number, and symbol." : "Five failed attempts temporarily lock the account."}</p></div>
             {setupRequired ? <p className="rounded-xl border border-[#5A92C9]/20 bg-white/80 p-3 text-xs leading-5 text-muted-foreground">The first submitted owner account becomes the administrator. Setup closes automatically after it is created.</p> : null}
             {localError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError}</div> : null}
@@ -201,9 +202,10 @@ function SignInScreen() {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const { loading, user } = useAuth();
+  const { loading, user, authState } = useAuth();
   if (loading) return <DashboardLayoutSkeleton />;
   if (!user) return <SignInScreen />;
+  if (authState && authState !== "full") return <LocalSecurityCompletion authState={authState} />;
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "17.5rem", "--sidebar-width-icon": "4.75rem" } as CSSProperties}>
