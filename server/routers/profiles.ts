@@ -5,7 +5,7 @@ import type { DirectoryNode } from "../../shared/domain";
 import { storagePut } from "../storage";
 import * as db from "../db";
 import { fetchGraphDirectory, synchronizeGraphDirectory } from "../integrations/microsoftGraph";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, portalResourceProcedure, protectedProcedure, router } from "../_core/trpc";
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 
@@ -89,7 +89,7 @@ export const profilesRouter = router({
     return db.ensureEmployeeProfileForUser(ctx.user);
   }),
 
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: portalResourceProcedure("module:people").query(async ({ ctx }) => {
     await db.ensureEmployeeProfileForUser(ctx.user);
     const directory = await readDirectoryWithGraphFallback();
     const profiles = await db.listEmployeeProfiles();
@@ -113,7 +113,7 @@ export const profilesRouter = router({
     };
   }),
 
-  organization: protectedProcedure.query(async ({ ctx }) => {
+  organization: portalResourceProcedure("module:organization").query(async ({ ctx }) => {
     await db.ensureEmployeeProfileForUser(ctx.user);
     return readDirectoryWithGraphFallback();
   }),

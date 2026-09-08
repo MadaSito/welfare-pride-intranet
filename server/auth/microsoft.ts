@@ -6,6 +6,7 @@ import { SAML, ValidateInResponseTo, type Profile } from "@node-saml/node-saml";
 import * as db from "../db";
 import { decryptJson, encryptJson } from "../security/encryption";
 import type { MicrosoftPublicConfig, MicrosoftSecrets } from "../integrations/contracts";
+import { synchronizeDelegatedEntraGroupMemberships } from "../integrations/microsoftGraph";
 import { issueAppSession } from "./session";
 import { DatabaseSamlCacheProvider } from "./samlCache";
 
@@ -74,6 +75,16 @@ function profileValue(profile: Profile, keys: string[]) {
     if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0].trim();
   }
   return null;
+}
+
+function profileValues(profile: Profile, keys: string[]) {
+  const values: string[] = [];
+  for (const key of keys) {
+    const value = profile[key];
+    if (typeof value === "string" && value.trim()) values.push(value.trim());
+    if (Array.isArray(value)) values.push(...value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map(item => item.trim()));
+  }
+  return Array.from(new Set(values));
 }
 
 function createSamlServiceProvider(req: Request, configuration: NonNullable<Awaited<ReturnType<typeof loadSamlConfiguration>>>) {
@@ -184,6 +195,8 @@ export function registerMicrosoftAuthRoutes(app: Express) {
         officeLocation: profileValue(profile, ["officeLocation"]),
         phone: profileValue(profile, ["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/mobilephone", "mobilePhone"]),
       });
+      const samlGroups = profileValues(profile, ["http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", "groups"]);
+      await db.replaceUserEntraGroupMemberships(user.id, samlGroups.map(groupId => ({ groupId, displayName: groupId })));
       await issueAppSession(req, res, user.id);
       return res.redirect(302, "/");
     } catch (error) {
@@ -206,7 +219,7 @@ export function registerMicrosoftAuthRoutes(app: Express) {
     const nonce = randomBytes(32).toString("base64url");
     const challenge = createHash("sha256").update(verifier).digest("base64url");
     const redirectUri = publicConfig.redirectUri || `${getPublicBaseUrl(req)}/api/auth/microsoft/callback`;
-    const scope = publicConfig.graphScopes || "openid profile email offline_access User.Read User.ReadBasic.All";
+    const scope = publicConfig.graphScopes || "openid profile email offline_access User.Read User.ReadBasic.All GroupMember.Read.All Sites.Read.All";
     const authority = publicConfig.authorityUrl || `https://login.microsoftonline.com/${publicConfig.tenantId}`;
     const authorizeUrl = new URL(`${authority.replace(/\/$/, "")}/oauth2/v2.0/authorize`);
     authorizeUrl.search = new URLSearchParams({
@@ -270,7 +283,7 @@ export function registerMicrosoftAuthRoutes(app: Express) {
           code,
           redirect_uri: redirectUri,
           code_verifier: cookies[VERIFIER_COOKIE],
-          scope: publicConfig.graphScopes || "openid profile email offline_access User.Read User.ReadBasic.All",
+          scope: publicConfig.graphScopes || "openid profile email offline_access User.Read User.ReadBasic.All GroupMember.Read.All Sites.Read.All",
         }),
       });
       if (!tokenResponse.ok) throw new Error(`Microsoft token exchange failed with status ${tokenResponse.status}`);
@@ -324,6 +337,13 @@ export function registerMicrosoftAuthRoutes(app: Express) {
         scopes: tokenSet.scope ?? null,
         accessTokenExpiresAt: new Date(Date.now() + tokenSet.expires_in * 1000),
       });
+
+      try {
+        await synchronizeDelegatedEntraGroupMemberships(user.id);
+      } catch (groupError) {
+        await db.replaceUserEntraGroupMemberships(user.id, []);
+        console.warn("[MicrosoftAuth] Entra group membership synchronization skipped:", groupError instanceof Error ? groupError.message : "Unknown error");
+      }
 
       await issueAppSession(req, res, user.id);
       clearCorrelationCookies(res);

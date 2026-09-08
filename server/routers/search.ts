@@ -12,12 +12,17 @@ export const searchRouter = router({
   unified: protectedProcedure
     .input(z.object({ query: z.string().trim().min(2).max(120), limitPerSource: z.number().int().min(1).max(10).default(6) }))
     .query(async ({ ctx, input }) => {
+      const [canSearchPeople, canSearchAnnouncements, canSearchDocuments] = await Promise.all([
+        db.canAccessPortalResource({ resourceKey: "module:people", userId: ctx.user.id, role: ctx.user.role }),
+        db.canAccessPortalResource({ resourceKey: "module:announcements", userId: ctx.user.id, role: ctx.user.role }),
+        db.canAccessPortalResource({ resourceKey: "module:hr", userId: ctx.user.id, role: ctx.user.role }),
+      ]);
       const [people, announcements, documents] = await Promise.all([
-        db.searchEmployeeProfiles(input.query, input.limitPerSource),
-        db.searchPublishedAnnouncements(input.query, input.limitPerSource),
-        listAuthorizedSharePointDocuments({ userId: ctx.user.id, query: input.query })
+        canSearchPeople ? db.searchEmployeeProfiles(input.query, input.limitPerSource) : Promise.resolve([]),
+        canSearchAnnouncements ? db.searchPublishedAnnouncements(input.query, input.limitPerSource) : Promise.resolve([]),
+        canSearchDocuments ? listAuthorizedSharePointDocuments({ userId: ctx.user.id, query: input.query })
           .then(items => ({ status: "connected" as const, items: items.filter(item => !item.isFolder).slice(0, input.limitPerSource) }))
-          .catch(error => ({ status: "unavailable" as const, message: error instanceof Error ? error.message : "HR document search is unavailable.", items: [] })),
+          .catch(error => ({ status: "unavailable" as const, message: error instanceof Error ? error.message : "HR document search is unavailable.", items: [] })) : Promise.resolve({ status: "restricted" as const, items: [] }),
       ]);
 
       const peopleResults = people.map(item => ({
@@ -49,7 +54,7 @@ export const searchRouter = router({
         query: input.query,
         results: [...peopleResults, ...announcementResults, ...documentResults],
         groups: { people: peopleResults, announcements: announcementResults, documents: documentResults },
-        sourceStatus: { people: "connected" as const, announcements: "connected" as const, documents: documents.status },
+        sourceStatus: { people: canSearchPeople ? "connected" as const : "restricted" as const, announcements: canSearchAnnouncements ? "connected" as const : "restricted" as const, documents: documents.status },
         documentMessage: "message" in documents ? documents.message : undefined,
       };
     }),

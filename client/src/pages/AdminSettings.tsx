@@ -23,7 +23,7 @@ type MicrosoftForm = {
 const blankForm: MicrosoftForm = {
   tenantId: "", clientId: "", clientSecret: "", authorityUrl: "https://login.microsoftonline.com", redirectUri: "",
   samlEntryPoint: "", samlIssuer: "", samlIdpIssuer: "", samlCallbackUrl: "", samlCertificate: "",
-  graphBaseUrl: "https://graph.microsoft.com/v1.0", graphScopes: "openid profile email offline_access User.Read User.ReadBasic.All Sites.Read.All",
+  graphBaseUrl: "https://graph.microsoft.com/v1.0", graphScopes: "openid profile email offline_access User.Read User.ReadBasic.All GroupMember.Read.All Sites.Read.All",
   sharePointSiteUrl: "", sharePointSiteId: "", holidayListId: "", hrLibraryId: "",
 };
 

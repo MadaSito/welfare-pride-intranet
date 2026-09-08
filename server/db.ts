@@ -24,8 +24,14 @@ import {
   microsoftOauthSessions,
   samlRequestCorrelations,
   users,
+  entraGroups,
+  userEntraGroupMemberships,
+  portalResources,
+  portalResourceAssignments,
+  accessControlAuditEvents,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
+import { BUILT_IN_PORTAL_RESOURCES, type PortalAssignmentSubjectType, type PortalResourceAccessMode } from "../shared/portalAccess";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: mysql.Pool | null = null;
@@ -288,6 +294,15 @@ export async function listLocalMfaPolicies() {
     .from(localCredentials)
     .innerJoin(users, eq(localCredentials.userId, users.id))
     .orderBy(asc(localCredentials.email));
+}
+
+export async function listPortalUsersForAssignments() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role, loginMethod: users.loginMethod })
+    .from(users)
+    .orderBy(asc(users.name), asc(users.email));
 }
 
 export async function createAppSessionRecord(input: {
@@ -1117,6 +1132,229 @@ export async function updateMilestone(id: number, patch: Partial<typeof mileston
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(milestones).set(patch).where(eq(milestones.id, id));
+}
+
+export async function ensureBuiltInPortalResources() {
+  const db = await getDb();
+  if (!db) return;
+  for (const item of BUILT_IN_PORTAL_RESOURCES) {
+    await db.insert(portalResources).values({
+      ...item,
+      resourceType: "module",
+      isSystem: true,
+      isPublished: true,
+      accessMode: "all_authenticated",
+    }).onDuplicateKeyUpdate({
+      set: { resourceKey: sql`${portalResources.resourceKey}` },
+    });
+  }
+}
+
+export async function listPortalResources(includeUnpublished = false) {
+  await ensureBuiltInPortalResources();
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(portalResources)
+    .where(includeUnpublished ? undefined : eq(portalResources.isPublished, true))
+    .orderBy(asc(portalResources.navigationGroup), asc(portalResources.sortOrder), asc(portalResources.label));
+}
+
+export async function getPortalResourceByKey(resourceKey: string) {
+  await ensureBuiltInPortalResources();
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(portalResources).where(eq(portalResources.resourceKey, resourceKey)).limit(1))[0];
+}
+
+export async function getPortalResourceByPath(path: string) {
+  await ensureBuiltInPortalResources();
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(portalResources).where(eq(portalResources.path, path)).limit(1))[0];
+}
+
+export async function getPortalResourceAssignments(resourceId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(portalResourceAssignments).where(eq(portalResourceAssignments.resourceId, resourceId)).orderBy(asc(portalResourceAssignments.createdAt));
+}
+
+export async function listEntraGroups() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(entraGroups).orderBy(asc(entraGroups.displayName));
+}
+
+export async function upsertEntraGroup(input: { groupId: string; displayName: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(entraGroups).values({ ...input, lastSyncedAt: new Date() }).onDuplicateKeyUpdate({
+    set: { displayName: input.displayName, lastSyncedAt: new Date() },
+  });
+}
+
+export async function replaceUserEntraGroupMemberships(userId: number, groups: Array<{ groupId: string; displayName: string }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const normalized = Array.from(new Map(groups.map(group => [group.groupId, group])).values());
+  await db.transaction(async tx => {
+    for (const group of normalized) {
+      await tx.insert(entraGroups).values({ ...group, lastSyncedAt: new Date() }).onDuplicateKeyUpdate({
+        set: { displayName: group.displayName, lastSyncedAt: new Date() },
+      });
+    }
+    await tx.delete(userEntraGroupMemberships).where(eq(userEntraGroupMemberships.userId, userId));
+    if (normalized.length) {
+      await tx.insert(userEntraGroupMemberships).values(normalized.map(group => ({ userId, entraGroupId: group.groupId, syncedAt: new Date() })));
+    }
+  });
+}
+
+export async function listUserEntraGroupMemberships(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({ groupId: entraGroups.groupId, displayName: entraGroups.displayName, syncedAt: userEntraGroupMemberships.syncedAt })
+    .from(userEntraGroupMemberships)
+    .innerJoin(entraGroups, eq(userEntraGroupMemberships.entraGroupId, entraGroups.groupId))
+    .where(eq(userEntraGroupMemberships.userId, userId))
+    .orderBy(asc(entraGroups.displayName));
+}
+
+export const ENTRA_GROUP_MEMBERSHIP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export function isFreshEntraGroupMembership(syncedAt: Date, now = Date.now()) {
+  return syncedAt.getTime() >= now - ENTRA_GROUP_MEMBERSHIP_MAX_AGE_MS;
+}
+
+async function userPortalGroupIds(userId: number) {
+  const memberships = await listUserEntraGroupMemberships(userId);
+  return new Set(memberships.filter(item => isFreshEntraGroupMembership(item.syncedAt)).map(item => item.groupId));
+}
+
+export async function canAccessPortalResource(input: { resourceKey: string; userId: number; role: "admin" | "user" }) {
+  const resource = await getPortalResourceByKey(input.resourceKey);
+  if (!resource?.isPublished) return false;
+  if (input.role === "admin" || resource.accessMode === "all_authenticated") return true;
+  const [assignments, groupIds] = await Promise.all([getPortalResourceAssignments(resource.id), userPortalGroupIds(input.userId)]);
+  return assignments.some(assignment => assignment.userId === input.userId || (assignment.entraGroupId && groupIds.has(assignment.entraGroupId)));
+}
+
+export async function listVisiblePortalResources(input: { userId: number; role: "admin" | "user" }) {
+  const resources = await listPortalResources(false);
+  if (input.role === "admin") return resources;
+  const [allAssignments, groupIds] = await Promise.all([
+    (async () => {
+      const db = await getDb();
+      return db ? db.select().from(portalResourceAssignments) : [];
+    })(),
+    userPortalGroupIds(input.userId),
+  ]);
+  const assignmentsByResource = new Map<number, typeof allAssignments>();
+  for (const assignment of allAssignments) {
+    const existing = assignmentsByResource.get(assignment.resourceId) || [];
+    existing.push(assignment);
+    assignmentsByResource.set(assignment.resourceId, existing);
+  }
+  return resources.filter(resource => {
+    if (resource.accessMode === "all_authenticated") return true;
+    return (assignmentsByResource.get(resource.id) || []).some(assignment => assignment.userId === input.userId || (assignment.entraGroupId && groupIds.has(assignment.entraGroupId)));
+  });
+}
+
+export async function savePortalResource(input: {
+  id?: number;
+  resourceKey: string;
+  resourceType: "module" | "page";
+  label: string;
+  path: string;
+  navigationGroup: string;
+  iconKey: string;
+  body?: string | null;
+  accessMode: PortalResourceAccessMode;
+  isPublished: boolean;
+  sortOrder: number;
+  createdByUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (input.id) {
+    const existing = (await db.select().from(portalResources).where(eq(portalResources.id, input.id)).limit(1))[0];
+    if (!existing) throw new Error("Portal resource not found");
+    if (existing.isSystem && (input.resourceType !== "module" || input.resourceKey !== existing.resourceKey || input.path !== existing.path)) {
+      throw new Error("System module identity cannot be changed");
+    }
+    await db.update(portalResources).set({
+      label: input.label,
+      navigationGroup: input.navigationGroup,
+      iconKey: input.iconKey,
+      body: input.body ?? null,
+      accessMode: input.accessMode,
+      isPublished: input.isPublished,
+      sortOrder: input.sortOrder,
+      ...(existing.isSystem ? {} : { resourceKey: input.resourceKey, resourceType: input.resourceType, path: input.path }),
+    }).where(eq(portalResources.id, input.id));
+    return (await db.select().from(portalResources).where(eq(portalResources.id, input.id)).limit(1))[0];
+  }
+  const result = await db.insert(portalResources).values({
+    resourceKey: input.resourceKey,
+    resourceType: input.resourceType,
+    label: input.label,
+    path: input.path,
+    navigationGroup: input.navigationGroup,
+    iconKey: input.iconKey,
+    body: input.body ?? null,
+    accessMode: input.accessMode,
+    isPublished: input.isPublished,
+    sortOrder: input.sortOrder,
+    isSystem: false,
+    createdByUserId: input.createdByUserId,
+  });
+  return (await db.select().from(portalResources).where(eq(portalResources.id, Number(result[0].insertId))).limit(1))[0];
+}
+
+export async function replacePortalResourceAssignments(input: {
+  resourceId: number;
+  assignments: Array<{ subjectType: PortalAssignmentSubjectType; userId?: number; entraGroupId?: string }>;
+  actorUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.transaction(async tx => {
+    await tx.delete(portalResourceAssignments).where(eq(portalResourceAssignments.resourceId, input.resourceId));
+    for (const assignment of input.assignments) {
+      if (assignment.subjectType === "user" && assignment.userId) {
+        await tx.insert(portalResourceAssignments).values({ resourceId: input.resourceId, subjectType: "user", userId: assignment.userId, createdByUserId: input.actorUserId });
+      }
+      if (assignment.subjectType === "entra_group" && assignment.entraGroupId) {
+        await tx.insert(portalResourceAssignments).values({ resourceId: input.resourceId, subjectType: "entra_group", entraGroupId: assignment.entraGroupId, createdByUserId: input.actorUserId });
+      }
+    }
+  });
+}
+
+export async function deleteCustomPortalResource(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const resource = (await db.select().from(portalResources).where(eq(portalResources.id, id)).limit(1))[0];
+  if (!resource) return;
+  if (resource.isSystem) throw new Error("System modules cannot be deleted");
+  await db.delete(portalResources).where(eq(portalResources.id, id));
+}
+
+export async function appendAccessControlAuditEvent(input: typeof accessControlAuditEvents.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(accessControlAuditEvents).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function listAccessControlAuditEvents(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(accessControlAuditEvents).orderBy(desc(accessControlAuditEvents.createdAt)).limit(Math.min(Math.max(limit, 1), 200));
 }
 
 // TODO: add feature queries here as your schema grows.

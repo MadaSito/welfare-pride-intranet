@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  foreignKey,
   index,
   int,
   mysqlEnum,
@@ -121,6 +122,101 @@ export const employeeProfiles = mysqlTable(
     uniqueIndex("employee_profiles_entra_id_unique").on(table.entraUserId),
     index("employee_profiles_department_idx").on(table.department),
   ]
+);
+
+export const entraGroups = mysqlTable(
+  "entra_groups",
+  {
+    groupId: varchar("groupId", { length: 128 }).primaryKey(),
+    displayName: varchar("displayName", { length: 240 }).notNull(),
+    lastSyncedAt: timestamp("lastSyncedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("entra_groups_display_name_idx").on(table.displayName)],
+);
+
+export const userEntraGroupMemberships = mysqlTable(
+  "user_entra_group_memberships",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    entraGroupId: varchar("entraGroupId", { length: 128 })
+      .notNull(),
+    syncedAt: timestamp("syncedAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.entraGroupId],
+      foreignColumns: [entraGroups.groupId],
+      name: "uegm_group_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("user_entra_group_memberships_unique").on(table.userId, table.entraGroupId),
+    index("user_entra_group_memberships_group_idx").on(table.entraGroupId),
+  ],
+);
+
+export const portalResources = mysqlTable(
+  "portal_resources",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    resourceKey: varchar("resourceKey", { length: 140 }).notNull(),
+    resourceType: mysqlEnum("resourceType", ["module", "page"]).notNull(),
+    label: varchar("label", { length: 160 }).notNull(),
+    path: varchar("path", { length: 220 }).notNull(),
+    navigationGroup: varchar("navigationGroup", { length: 120 }).default("Workplace").notNull(),
+    iconKey: varchar("iconKey", { length: 64 }).default("file-text").notNull(),
+    body: text("body"),
+    accessMode: mysqlEnum("accessMode", ["all_authenticated", "restricted"])
+      .default("all_authenticated")
+      .notNull(),
+    isPublished: boolean("isPublished").default(true).notNull(),
+    isSystem: boolean("isSystem").default(false).notNull(),
+    sortOrder: int("sortOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("portal_resources_key_unique").on(table.resourceKey),
+    uniqueIndex("portal_resources_path_unique").on(table.path),
+    index("portal_resources_published_sort_idx").on(table.isPublished, table.navigationGroup, table.sortOrder),
+  ],
+);
+
+export const portalResourceAssignments = mysqlTable(
+  "portal_resource_assignments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    resourceId: int("resourceId")
+      .notNull()
+      .references(() => portalResources.id, { onDelete: "cascade" }),
+    subjectType: mysqlEnum("subjectType", ["user", "entra_group"]).notNull(),
+    userId: int("userId").references(() => users.id, { onDelete: "cascade" }),
+    entraGroupId: varchar("entraGroupId", { length: 128 }).references(() => entraGroups.groupId, { onDelete: "cascade" }),
+    createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("portal_resource_assignments_user_unique").on(table.resourceId, table.userId),
+    uniqueIndex("portal_resource_assignments_group_unique").on(table.resourceId, table.entraGroupId),
+    index("portal_resource_assignments_resource_idx").on(table.resourceId),
+  ],
+);
+
+export const accessControlAuditEvents = mysqlTable(
+  "access_control_audit_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    action: varchar("action", { length: 120 }).notNull(),
+    resourceId: int("resourceId").references(() => portalResources.id, { onDelete: "set null" }),
+    actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+    metadataJson: text("metadataJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("access_control_audit_events_resource_created_idx").on(table.resourceId, table.createdAt)],
 );
 
 export const microsoftOauthSessions = mysqlTable(
@@ -452,6 +548,9 @@ export const operationAuditEvents = mysqlTable(
 
 export type EmployeeProfile = typeof employeeProfiles.$inferSelect;
 export type InsertEmployeeProfile = typeof employeeProfiles.$inferInsert;
+export type EntraGroup = typeof entraGroups.$inferSelect;
+export type PortalResource = typeof portalResources.$inferSelect;
+export type PortalResourceAssignment = typeof portalResourceAssignments.$inferSelect;
 export type MicrosoftOauthSession = typeof microsoftOauthSessions.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type CompanyEvent = typeof companyEvents.$inferSelect;

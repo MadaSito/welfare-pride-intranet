@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { storagePut } from "../storage";
 import * as db from "../db";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, portalResourceProcedure, router } from "../_core/trpc";
 
 const linkInput = z.object({
   title: z.string().trim().min(1).max(160),
@@ -16,7 +16,7 @@ const linkInput = z.object({
 });
 
 export const linksRouter = router({
-  list: protectedProcedure.query(() => db.listActiveImportantLinks()),
+  list: portalResourceProcedure("module:links").query(() => db.listActiveImportantLinks()),
   adminList: adminProcedure.query(() => db.listAllImportantLinks()),
   create: adminProcedure.input(linkInput).mutation(async ({ ctx, input }) => ({ id: await db.createImportantLink({ ...input, createdByUserId: ctx.user.id }) })),
   update: adminProcedure.input(z.object({ id: z.number().int().positive(), values: linkInput })).mutation(async ({ input }) => { await db.updateImportantLink(input.id, input.values); return { success: true } as const; }),
@@ -52,10 +52,10 @@ const milestoneInput = z.object({
 });
 
 export const companyPagesRouter = router({
-  about: protectedProcedure.query(() => db.listPublishedContentBlocks("about")),
+  about: portalResourceProcedure("module:about").query(() => db.listPublishedContentBlocks("about")),
   adminAbout: adminProcedure.query(() => db.listAllContentBlocks("about")),
   saveBlock: adminProcedure.input(blockInput).mutation(async ({ ctx, input }) => { await db.upsertContentBlock({ ...input, updatedByUserId: ctx.user.id }); return { success: true } as const; }),
-  founders: protectedProcedure.query(async () => ({ people: await db.listPublishedFounders(), milestones: await db.listPublishedMilestones() })),
+  founders: portalResourceProcedure("module:founders").query(async () => ({ people: await db.listPublishedFounders(), milestones: await db.listPublishedMilestones() })),
   adminFounders: adminProcedure.query(async () => ({ people: await db.listAllFounders(), milestones: await db.listAllMilestones() })),
   createFounder: adminProcedure.input(founderInput).mutation(async ({ input }) => ({ id: await db.createFounder(input) })),
   updateFounder: adminProcedure.input(z.object({ id: z.number().int().positive(), values: founderInput })).mutation(async ({ input }) => { await db.updateFounder(input.id, input.values); return { success: true } as const; }),

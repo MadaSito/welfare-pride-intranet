@@ -21,6 +21,13 @@ type GraphCollection<T> = {
   "@odata.nextLink"?: string;
 };
 
+type GraphGroup = {
+  id?: string;
+  displayName?: string;
+};
+
+const DEFAULT_DELEGATED_SCOPES = "openid profile email offline_access User.Read User.ReadBasic.All GroupMember.Read.All Sites.Read.All";
+
 async function loadGraphConfiguration() {
   const setting = await db.getIntegrationSettingByProvider("microsoft_entra");
   if (!setting) throw new Error("Microsoft Entra ID is not configured");
@@ -81,7 +88,7 @@ export async function getDelegatedMicrosoftAccessToken(userId: number) {
         client_secret: secrets.clientSecret!,
         grant_type: "refresh_token",
         refresh_token: tokenSet.refreshToken,
-        scope: publicConfig.graphScopes || "openid profile email offline_access User.Read User.ReadBasic.All Sites.Read.All",
+        scope: publicConfig.graphScopes || DEFAULT_DELEGATED_SCOPES,
       }),
     },
   );
@@ -156,4 +163,32 @@ export async function synchronizeGraphDirectory() {
     });
   }
   return { synchronized: people.length };
+}
+
+export async function synchronizeDelegatedEntraGroupMemberships(userId: number) {
+  const accessToken = await getDelegatedMicrosoftAccessToken(userId);
+  const { publicConfig } = await loadGraphConfiguration();
+  const graphBaseUrl = (publicConfig.graphBaseUrl || "https://graph.microsoft.com/v1.0").replace(/\/$/, "");
+  const baseOrigin = new URL(graphBaseUrl).origin;
+  let nextUrl: string | undefined = `${graphBaseUrl}/me/memberOf/microsoft.graph.group?$select=id,displayName&$top=100`;
+  const groups = new Map<string, { groupId: string; displayName: string }>();
+
+  while (nextUrl && groups.size < 1_000) {
+    const parsed = new URL(nextUrl);
+    if (parsed.origin !== baseOrigin) throw new Error("Microsoft Graph returned an unexpected group-membership pagination origin");
+    const response = await fetch(parsed, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (!response.ok) {
+      throw new Error(response.status === 403
+        ? "Microsoft Entra group membership permission is not granted. Add delegated GroupMember.Read.All and grant consent."
+        : `Microsoft Graph group membership request failed with status ${response.status}`);
+    }
+    const page = (await response.json()) as GraphCollection<GraphGroup>;
+    for (const group of page.value) {
+      if (group.id) groups.set(group.id, { groupId: group.id, displayName: group.displayName?.trim() || group.id });
+    }
+    nextUrl = page["@odata.nextLink"];
+  }
+
+  await db.replaceUserEntraGroupMemberships(userId, Array.from(groups.values()));
+  return { synchronized: groups.size };
 }

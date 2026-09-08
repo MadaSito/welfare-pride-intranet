@@ -1,5 +1,9 @@
 # Copy the required values into Hostinger hPanel or a root-readable VPS .env file.
 NODE_ENV=production
+TRUST_PROXY=true
+ENABLE_HSTS=true
+JSON_BODY_LIMIT=6mb
+URLENCODED_BODY_LIMIT=2mb
 PORT=3000
 INTRANET_DOMAIN=intranet.example.org
 DATABASE_URL=mysql://welfare_pride:replace-with-a-strong-password@127.0.0.1:3306/welfare_pride

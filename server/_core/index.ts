@@ -52,19 +52,25 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   app.disable("x-powered-by");
-  app.set("trust proxy", 1);
+  app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
   app.use(async (_req, res, next) => {
     const frameOrigins = await getTechnologyFrameOrigins();
     const developmentScripts = process.env.NODE_ENV === "development" ? " 'unsafe-inline' 'unsafe-eval'" : "";
     const upgradeInsecureRequests = process.env.NODE_ENV === "production" ? "; upgrade-insecure-requests" : "";
-    res.setHeader("Content-Security-Policy", `default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${developmentScripts}; connect-src 'self' https: wss:; frame-src 'self' ${frameOrigins.join(" ")}; form-action 'self'; frame-ancestors 'self'${upgradeInsecureRequests}`);
+    res.setHeader("Content-Security-Policy", `default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${developmentScripts}; connect-src 'self'; frame-src 'self' ${frameOrigins.join(" ")}; form-action 'self'; frame-ancestors 'self'${upgradeInsecureRequests}`);
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    if (process.env.NODE_ENV === "production" && process.env.ENABLE_HSTS === "true") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
     next();
   });
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // File uploads are validated again per route; keep global parsers small enough to limit unauthenticated memory pressure.
+  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "6mb" }));
+  app.use(express.urlencoded({ limit: process.env.URLENCODED_BODY_LIMIT || "2mb", extended: true }));
   app.get("/api/healthz", (_req, res) => res.status(200).json({ ok: true }));
   registerFileRoutes(app);
   registerMicrosoftAuthRoutes(app);

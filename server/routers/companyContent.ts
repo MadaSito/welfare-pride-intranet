@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import * as db from "../db";
 import { synchronizeSharePointHolidays } from "../integrations/sharePoint";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, portalResourceProcedure, router } from "../_core/trpc";
 
 const announcementInput = z.object({
   title: z.string().trim().min(1).max(240),
@@ -29,7 +29,7 @@ const eventInput = z.object({
 }).refine(value => value.endAt >= value.startAt, { message: "Event end time must be after its start time.", path: ["endAt"] });
 
 export const announcementsRouter = router({
-  list: protectedProcedure.query(() => db.listPublishedAnnouncements()),
+  list: portalResourceProcedure("module:announcements").query(() => db.listPublishedAnnouncements()),
   adminList: adminProcedure.query(() => db.listAllAnnouncements()),
   create: adminProcedure.input(announcementInput).mutation(async ({ ctx, input }) => {
     const id = await db.createAnnouncement({
@@ -54,7 +54,7 @@ export const announcementsRouter = router({
 });
 
 export const eventsRouter = router({
-  list: protectedProcedure.input(z.object({ from: z.date(), to: z.date() })).query(({ input }) => db.listPublishedEvents(input.from, input.to)),
+  list: portalResourceProcedure("module:events").input(z.object({ from: z.date(), to: z.date() })).query(({ input }) => db.listPublishedEvents(input.from, input.to)),
   adminList: adminProcedure.query(() => db.listAllEvents()),
   create: adminProcedure.input(eventInput).mutation(async ({ ctx, input }) => {
     const id = await db.createCompanyEvent({ ...input, authorUserId: ctx.user.id });
@@ -71,7 +71,7 @@ export const eventsRouter = router({
 });
 
 export const calendarsRouter = router({
-  overview: protectedProcedure
+  overview: portalResourceProcedure("module:calendars")
     .input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .query(async ({ input }) => {
       const [holidayItems, birthdays, eventItems, sharePointConfig] = await Promise.all([

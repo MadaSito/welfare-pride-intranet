@@ -102,3 +102,10 @@
 - [x] Run the connected-machine isolated acceptance deployment and record Docker/native installer, first-login rotation, TOTP MFA, and administrator policy UI evidence.
 - [x] Synchronize the package-manager deployment fix and final tracker updates to GitHub and verify the remote release commit.
 - [x] Correct the package-manager integrity hash mismatch that blocked the production container build, then revalidate deployment packaging.
+- [x] Implement administrator-managed custom pages and navigation tabs with user- and group-restricted access controls.
+- [x] Add a Business Management restricted section with configurable visibility and server-enforced authorization.
+- [x] Synchronize Microsoft Entra ID group memberships and map them to standard-user portal views and navigation visibility.
+- [x] Build administrator controls for group-to-page and group-to-view assignments with safe local-user fallback behavior.
+- [x] Perform a defensive code and deployment security review, remediate verified findings, and document outstanding recommendations.
+- [x] Add authorization, group-visibility, and security-regression tests; validate responsive administration flows and update the operator guide.
+- [x] Remove the unused legacy map component retaining proprietary runtime environment references, then repeat the standalone-source scan.

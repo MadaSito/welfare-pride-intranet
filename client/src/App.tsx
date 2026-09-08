@@ -21,6 +21,9 @@ import Founders from "./pages/Founders";
 import AdminSettings from "./pages/AdminSettings";
 import BackupCenter from "./pages/BackupCenter";
 import RestoreHistory from "./pages/RestoreHistory";
+import AccessPages from "./pages/AccessPages";
+import BusinessManagement from "./pages/BusinessManagement";
+import CustomPortalPage from "./pages/CustomPortalPage";
 import { RequireAdmin } from "./components/RequireAdmin";
 
 function Router() {
@@ -39,7 +42,10 @@ function Router() {
         <Route path="/about" component={About} />
         <Route path="/founders" component={Founders} />
         <Route path="/technology" component={Technology} />
+        <Route path="/business-management" component={BusinessManagement} />
+        <Route path="/pages/:slug" component={CustomPortalPage} />
         <Route path="/admin/integrations"><RequireAdmin><AdminSettings /></RequireAdmin></Route>
+        <Route path="/admin/access-pages"><RequireAdmin><AccessPages /></RequireAdmin></Route>
         <Route path="/admin/backups"><RequireAdmin><BackupCenter /></RequireAdmin></Route>
         <Route path="/admin/restores"><RequireAdmin><RestoreHistory /></RequireAdmin></Route>
         <Route path="/404" component={NotFound} />

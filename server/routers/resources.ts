@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import * as db from "../db";
 import { listAuthorizedSharePointDocuments } from "../integrations/sharePoint";
-import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
+import { adminProcedure, portalResourceProcedure, router } from "../_core/trpc";
 
 function isPrivateHost(hostname: string) {
   const normalized = hostname.toLowerCase();
@@ -32,7 +32,7 @@ export function validateTechnologyEmbed(urlValue: string, allowedHostnameValue: 
 }
 
 export const documentsRouter = router({
-  list: protectedProcedure
+  list: portalResourceProcedure("module:hr")
     .input(z.object({ query: z.string().trim().max(200).optional(), category: z.string().trim().max(120).optional() }))
     .query(async ({ ctx, input }) => {
       const setting = await db.getIntegrationSettingByProvider("sharepoint");
@@ -56,7 +56,7 @@ const technologyInput = z.object({
 });
 
 export const technologyRouter = router({
-  list: protectedProcedure.query(() => db.listActiveTechnologyEmbeds()),
+  list: portalResourceProcedure("module:technology").query(() => db.listActiveTechnologyEmbeds()),
   adminList: adminProcedure.query(() => db.listAllTechnologyEmbeds()),
   create: adminProcedure.input(technologyInput).mutation(async ({ ctx, input }) => {
     const validated = validateTechnologyEmbed(input.url, input.allowedHostname);

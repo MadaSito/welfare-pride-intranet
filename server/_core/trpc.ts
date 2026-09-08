@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import * as db from "../db";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -29,6 +30,18 @@ const requireUser = t.middleware(async opts => {
 });
 
 export const protectedProcedure = t.procedure.use(requireUser);
+
+export function portalResourceProcedure(resourceKey: string) {
+  return protectedProcedure.use(
+    t.middleware(async opts => {
+      const { ctx, next } = opts;
+      if (!ctx.user || !(await db.canAccessPortalResource({ resourceKey, userId: ctx.user.id, role: ctx.user.role }))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this portal resource." });
+      }
+      return next({ ctx: { ...ctx, user: ctx.user } });
+    }),
+  );
+}
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {

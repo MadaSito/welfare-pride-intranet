@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { ArchiveRestore, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
+import { ArchiveRestore, BriefcaseBusiness, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LockKeyhole, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -22,37 +22,15 @@ import { LocalSecurityCompletion } from "./LocalSecurityCompletion";
 type NavItem = { icon: LucideIcon; label: string; path: string };
 type NavGroup = { label: string; items: NavItem[] };
 
-const navigationGroups: NavGroup[] = [
-  {
-    label: "Workplace",
-    items: [
-      { icon: Home, label: "Dashboard", path: "/" },
-      { icon: Megaphone, label: "Announcements", path: "/announcements" },
-      { icon: CalendarDays, label: "Events", path: "/events" },
-      { icon: Link2, label: "Important Links", path: "/links" },
-    ],
-  },
-  {
-    label: "People",
-    items: [
-      { icon: Users, label: "Employee Directory", path: "/people" },
-      { icon: Network, label: "Organization Chart", path: "/organization" },
-      { icon: CalendarHeart, label: "Calendars", path: "/calendars" },
-    ],
-  },
-  {
-    label: "Company",
-    items: [
-      { icon: FileText, label: "Human Resources", path: "/hr" },
-      { icon: Info, label: "About Welfare Pride", path: "/about" },
-      { icon: UsersRound, label: "Founders", path: "/founders" },
-      { icon: Laptop, label: "Technology", path: "/technology" },
-    ],
-  },
-] ;
+const iconByKey: Record<string, LucideIcon> = {
+  home: Home, megaphone: Megaphone, calendar: CalendarDays, link: Link2, users: Users,
+  network: Network, "calendar-heart": CalendarHeart, "file-text": FileText, info: Info,
+  "users-round": UsersRound, laptop: Laptop, briefcase: BriefcaseBusiness,
+};
 
 const adminItems: NavItem[] = [
   { icon: Settings, label: "Integration Settings", path: "/admin/integrations" },
+  { icon: LockKeyhole, label: "Access & Pages", path: "/admin/access-pages" },
   { icon: CloudCog, label: "Backup Center", path: "/admin/backups" },
   { icon: ArchiveRestore, label: "Restore History", path: "/admin/restores" },
 ] ;
@@ -219,7 +197,17 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...(user?.role === "admin" ? adminItems : [])], [user?.role]);
+  const portalNavigation = trpc.portalAccess.navigation.useQuery(undefined, { enabled: Boolean(user) });
+  const navigationGroups = useMemo<NavGroup[]>(() => {
+    const grouped = new Map<string, NavItem[]>();
+    for (const resource of portalNavigation.data?.resources || []) {
+      const items = grouped.get(resource.navigationGroup) || [];
+      items.push({ label: resource.label, path: resource.path, icon: iconByKey[resource.iconKey] || FileText });
+      grouped.set(resource.navigationGroup, items);
+    }
+    return Array.from(grouped, ([label, items]) => ({ label, items }));
+  }, [portalNavigation.data?.resources]);
+  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...(user?.role === "admin" ? adminItems : [])], [navigationGroups, user?.role]);
   const activeItem = allItems.find(item => item.path === "/" ? location === "/" : location.startsWith(item.path));
 
   return (
@@ -243,6 +231,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent className="px-2 py-3">
+          {portalNavigation.isLoading ? <div className="space-y-3 px-3 py-2"><div className="h-3 w-20 rounded bg-muted" /><div className="h-10 rounded-xl bg-muted/60" /><div className="h-10 rounded-xl bg-muted/60" /></div> : null}
           {navigationGroups.map(group => (
             <SidebarGroup key={group.label} className="py-1">
               <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.17em] text-muted-foreground/75">{group.label}</SidebarGroupLabel>
