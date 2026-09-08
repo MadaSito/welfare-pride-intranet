@@ -90,12 +90,14 @@
 - [x] Audit and remove any remaining managed-platform code, package, runtime, deployment, or documentation reference from the standalone deliverable.
 - [x] Complete local-first authentication with configurable time-based MFA and administrator-controlled future authentication options.
 - [x] Create the guarded `admin` / `admin` bootstrap account only for a fresh installation and force a password change on first sign-in.
-- [ ] Complete end-to-end validation for the Docker and bare-metal Linux VPS automated installation workflows.
-- [ ] Commit and verify the GitHub synchronization of the project context and sanitized session-worklog folders.
+- [x] Complete end-to-end validation for the native Linux VPS service path, including bootstrap login, credential rotation, and MFA enrollment.
+- [x] Commit and verify the GitHub synchronization of the project context and sanitized session-worklog folders.
 - [x] Update the deployment guide and export a matching professional PDF guide for operator use.
-- [ ] Validate the standalone release, GitHub synchronization, authentication, scripts, and documentation before delivery.
-- [ ] Perform authenticated UI validation of administrator-facing MFA policy controls and document future authentication-provider configuration.
-- [ ] Run a clean Docker installer validation through migration, health check, bootstrap login, credential rotation, and MFA enrollment.
-- [ ] Run a clean native VPS installer validation through build, migration, service start, health check, credential rotation, and MFA enrollment.
-- [ ] Verify remote GitHub synchronization of the documented project context and sanitized session-worklog folders.
-- [ ] Perform authenticated UI verification of the local MFA policy list and toggle flow against the deployed API.
+- [ ] Re-validate the standalone release, GitHub synchronization, authentication, scripts, and documentation after native service acceptance completes.
+- [x] Perform authenticated UI validation of administrator-facing MFA policy controls and document future authentication-provider configuration.
+- [x] Run a clean Docker installer validation through migration, health check, bootstrap login, credential rotation, and MFA enrollment.
+- [x] Run a clean native VPS installer validation through build, migration, service start, health check, credential rotation, and MFA enrollment.
+- [x] Verify remote GitHub synchronization of the documented project context and sanitized session-worklog folders.
+- [x] Perform authenticated UI verification of the local MFA policy list and toggle flow against the deployed API.
+- [x] Run the connected-machine isolated acceptance deployment and record Docker/native installer, first-login rotation, TOTP MFA, and administrator policy UI evidence.
+- [ ] Synchronize the post-acceptance evidence, dependency remediations, and tracker updates to GitHub and verify the remote release commit.
