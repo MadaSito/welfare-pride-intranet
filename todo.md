@@ -93,11 +93,12 @@
 - [x] Complete end-to-end validation for the native Linux VPS service path, including bootstrap login, credential rotation, and MFA enrollment.
 - [x] Commit and verify the GitHub synchronization of the project context and sanitized session-worklog folders.
 - [x] Update the deployment guide and export a matching professional PDF guide for operator use.
-- [x] Re-validate the standalone release, GitHub synchronization, authentication, scripts, and documentation after native service acceptance completes.
+- [ ] Re-validate the standalone release, GitHub synchronization, authentication, scripts, and documentation after the package-manager deployment fix completes.
 - [x] Perform authenticated UI validation of administrator-facing MFA policy controls and document future authentication-provider configuration.
 - [x] Run a clean Docker installer validation through migration, health check, bootstrap login, credential rotation, and MFA enrollment.
 - [x] Run a clean native VPS installer validation through build, migration, service start, health check, credential rotation, and MFA enrollment.
 - [x] Verify remote GitHub synchronization of the documented project context and sanitized session-worklog folders.
 - [x] Perform authenticated UI verification of the local MFA policy list and toggle flow against the deployed API.
 - [x] Run the connected-machine isolated acceptance deployment and record Docker/native installer, first-login rotation, TOTP MFA, and administrator policy UI evidence.
-- [x] Synchronize the post-acceptance evidence, dependency remediations, and tracker updates to GitHub and verify the remote release commit.
+- [ ] Synchronize the package-manager deployment fix and final tracker updates to GitHub and verify the remote release commit.
+- [ ] Correct the package-manager integrity hash mismatch that blocked the production container build, then revalidate deployment packaging.
