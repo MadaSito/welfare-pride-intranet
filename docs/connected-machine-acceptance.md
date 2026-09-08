@@ -27,4 +27,4 @@ This was an acceptance deployment only. Its temporary containers, MySQL data, br
 
 ## Post-acceptance release gate
 
-After acceptance cleanup, the standalone source passed 45 automated tests, TypeScript validation, a production build, Drizzle migration consistency validation, and a production dependency audit with no known vulnerabilities. The source-package scan also found no proprietary runtime names, managed URLs, injected service variables, or hosted asset paths in the deliverable source tree.
+After acceptance cleanup, the standalone source passed 46 automated tests, TypeScript validation, a production build, Drizzle migration consistency validation, and a production dependency audit with no known vulnerabilities. A production-equivalent Node 22.22 container also resolved the pinned Corepack `pnpm` declaration successfully after its integrity metadata was corrected. The source-package scan found no proprietary runtime names, managed URLs, injected service variables, or hosted asset paths in the deliverable source tree.

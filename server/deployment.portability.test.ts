@@ -71,4 +71,9 @@ describe("standalone deployment package", () => {
     expect(statSync(path.join(root, "docs/standalone-deployment-guide.pdf")).size).toBeGreaterThan(10_000);
     expect(read("docs/standalone-deployment-guide.md")).toContain("BOOTSTRAP_DEFAULT_ADMIN");
   });
+
+  it("pins the verified pnpm integrity metadata required by production Corepack builds", () => {
+    const packageJson = JSON.parse(read("package.json")) as { packageManager?: string };
+    expect(packageJson.packageManager).toBe("pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af");
+  });
 });
