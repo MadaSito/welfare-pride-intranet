@@ -25,6 +25,7 @@ import AccessPages from "./pages/AccessPages";
 import BusinessManagement from "./pages/BusinessManagement";
 import CustomPortalPage from "./pages/CustomPortalPage";
 import { RequireAdmin } from "./components/RequireAdmin";
+import SecurityCenter from "./pages/SecurityCenter";
 
 function Router() {
   return (
@@ -48,6 +49,7 @@ function Router() {
         <Route path="/admin/access-pages"><RequireAdmin><AccessPages /></RequireAdmin></Route>
         <Route path="/admin/backups"><RequireAdmin><BackupCenter /></RequireAdmin></Route>
         <Route path="/admin/restores"><RequireAdmin><RestoreHistory /></RequireAdmin></Route>
+        <Route path="/admin/security"><RequireAdmin><SecurityCenter /></RequireAdmin></Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

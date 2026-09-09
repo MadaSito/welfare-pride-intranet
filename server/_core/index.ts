@@ -11,6 +11,7 @@ import { scheduledBackupHandler } from "../scheduled/backup";
 import * as db from "../db";
 import { registerFileRoutes } from "../files";
 import { ensureBootstrapAdministrator } from "../auth/bootstrap";
+import { securityCenterMiddleware } from "../security/securityCenter";
 
 let frameOriginCache: { expiresAt: number; origins: string[] } = { expiresAt: 0, origins: [] };
 
@@ -68,6 +69,7 @@ async function startServer() {
     }
     next();
   });
+  app.use(securityCenterMiddleware);
   // File uploads are validated again per route; keep global parsers small enough to limit unauthenticated memory pressure.
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "6mb" }));
   app.use(express.urlencoded({ limit: process.env.URLENCODED_BODY_LIMIT || "2mb", extended: true }));

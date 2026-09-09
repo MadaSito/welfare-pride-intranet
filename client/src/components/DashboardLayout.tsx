@@ -32,6 +32,7 @@ const iconByKey: Record<string, LucideIcon> = {
 
 const adminItems: NavItem[] = [
   { icon: Settings, label: "Integration Settings", path: "/admin/integrations" },
+  { icon: ShieldCheck, label: "Security Center", path: "/admin/security" },
   { icon: LockKeyhole, label: "Access & Pages", path: "/admin/access-pages" },
   { icon: CloudCog, label: "Backup Center", path: "/admin/backups" },
   { icon: ArchiveRestore, label: "Restore History", path: "/admin/restores" },

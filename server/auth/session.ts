@@ -6,6 +6,7 @@ import { ForbiddenError } from "@shared/_core/errors";
 import type { AppSession, User } from "../../drizzle/schema";
 import * as db from "../db";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { getTrustedClientIp } from "../security/securityCenter";
 
 export const APP_SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
@@ -33,8 +34,7 @@ export type AuthenticatedSession = {
 export async function issueAppSession(req: Request, res: Response, userId: number, authState: LocalAuthState = "full") {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + APP_SESSION_MAX_AGE_MS);
-  const forwarded = req.headers["x-forwarded-for"];
-  const clientIp = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0]?.trim() || req.ip;
+  const clientIp = getTrustedClientIp(req);
   await db.createAppSessionRecord({
     userId,
     tokenHash: hashSessionToken(token),

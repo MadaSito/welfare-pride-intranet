@@ -31,6 +31,9 @@ import {
   portalAccessRequests,
   adminAccessRequestNotifications,
   accessControlAuditEvents,
+  securityEvents,
+  securityIpPolicies,
+  securitySettings,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 import { BUILT_IN_PORTAL_RESOURCES, type PortalAssignmentSubjectType, type PortalResourceAccessMode } from "../shared/portalAccess";
@@ -1440,6 +1443,148 @@ export async function listAccessControlAuditEvents(limit = 100) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(accessControlAuditEvents).orderBy(desc(accessControlAuditEvents.createdAt)).limit(Math.min(Math.max(limit, 1), 200));
+}
+
+export const DEFAULT_SECURITY_SETTINGS = {
+  allowlistEnabled: false,
+  rateLimitRequests: 120,
+  rateLimitWindowSeconds: 60,
+  autoBlockThreshold: 0,
+  autoBlockDurationMinutes: 30,
+} as const;
+
+export type SecuritySettingsInput = {
+  allowlistEnabled: boolean;
+  rateLimitRequests: number;
+  rateLimitWindowSeconds: number;
+  autoBlockThreshold: number;
+  autoBlockDurationMinutes: number;
+};
+
+export async function getSecuritySettings() {
+  const db = await getDb();
+  if (!db) return { id: 1, ...DEFAULT_SECURITY_SETTINGS };
+  const [settings] = await db.select().from(securitySettings).where(eq(securitySettings.id, 1)).limit(1);
+  return settings || { id: 1, ...DEFAULT_SECURITY_SETTINGS };
+}
+
+export async function updateSecuritySettings(input: SecuritySettingsInput & { updatedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(securitySettings).values({ id: 1, ...input }).onDuplicateKeyUpdate({
+    set: { ...input, updatedAt: new Date() },
+  });
+  return getSecuritySettings();
+}
+
+export async function listSecurityIpPolicies(limit = 500) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(securityIpPolicies).orderBy(desc(securityIpPolicies.isActive), desc(securityIpPolicies.createdAt)).limit(Math.min(Math.max(limit, 1), 500));
+}
+
+export async function listActiveSecurityIpPolicies() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(securityIpPolicies).where(and(
+    eq(securityIpPolicies.isActive, true),
+    or(isNull(securityIpPolicies.expiresAt), gt(securityIpPolicies.expiresAt, new Date())),
+  ));
+}
+
+export async function upsertSecurityIpPolicy(input: {
+  mode: "allow" | "block";
+  ipAddress: string;
+  label: string;
+  expiresAt: Date | null;
+  createdByUserId: number | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(securityIpPolicies).values(input).onDuplicateKeyUpdate({
+    set: {
+      label: input.label,
+      expiresAt: input.expiresAt,
+      isActive: true,
+      createdByUserId: input.createdByUserId,
+      revokedAt: null,
+      revokedByUserId: null,
+      updatedAt: new Date(),
+    },
+  });
+  return (await db.select().from(securityIpPolicies).where(and(eq(securityIpPolicies.mode, input.mode), eq(securityIpPolicies.ipAddress, input.ipAddress))).limit(1))[0];
+}
+
+export async function revokeSecurityIpPolicy(input: { policyId: number; revokedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [policy] = await db.select().from(securityIpPolicies).where(eq(securityIpPolicies.id, input.policyId)).limit(1);
+  if (!policy) return undefined;
+  if (policy.isActive) {
+    await db.update(securityIpPolicies).set({ isActive: false, revokedAt: new Date(), revokedByUserId: input.revokedByUserId }).where(eq(securityIpPolicies.id, input.policyId));
+  }
+  return (await db.select().from(securityIpPolicies).where(eq(securityIpPolicies.id, input.policyId)).limit(1))[0];
+}
+
+export async function appendSecurityEvent(input: typeof securityEvents.$inferInsert) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.insert(securityEvents).values(input);
+  return Number(result[0].insertId);
+}
+
+export type SecurityEventFilters = {
+  correlationId?: string;
+  ipAddress?: string;
+  severity?: "info" | "low" | "medium" | "high" | "critical";
+  eventType?: string;
+  search?: string;
+  limit?: number;
+};
+
+export async function listSecurityEvents(filters: SecurityEventFilters = {}) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (filters.correlationId) conditions.push(eq(securityEvents.correlationId, filters.correlationId));
+  if (filters.ipAddress) conditions.push(eq(securityEvents.ipAddress, filters.ipAddress));
+  if (filters.severity) conditions.push(eq(securityEvents.severity, filters.severity));
+  if (filters.eventType) conditions.push(eq(securityEvents.eventType, filters.eventType));
+  if (filters.search) {
+    const match = `%${filters.search.trim().slice(0, 100)}%`;
+    conditions.push(or(
+      like(securityEvents.correlationId, match),
+      like(securityEvents.ipAddress, match),
+      like(securityEvents.eventType, match),
+      like(securityEvents.requestPath, match),
+    ));
+  }
+  return db.select({ event: securityEvents, actorName: users.name, actorEmail: users.email })
+    .from(securityEvents)
+    .leftJoin(users, eq(securityEvents.actorUserId, users.id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(securityEvents.createdAt), desc(securityEvents.id))
+    .limit(Math.min(Math.max(filters.limit ?? 200, 1), 500));
+}
+
+export async function getSecurityOverview() {
+  const [settings, policies, events] = await Promise.all([
+    getSecuritySettings(),
+    listSecurityIpPolicies(),
+    listSecurityEvents({ limit: 250 }),
+  ]);
+  const recent = events.filter(({ event }) => event.createdAt.getTime() >= Date.now() - 24 * 60 * 60 * 1000);
+  return {
+    settings,
+    policies,
+    events,
+    metrics: {
+      activeBlocks: policies.filter(policy => policy.mode === "block" && policy.isActive && (!policy.expiresAt || policy.expiresAt.getTime() > Date.now())).length,
+      activeAllows: policies.filter(policy => policy.mode === "allow" && policy.isActive && (!policy.expiresAt || policy.expiresAt.getTime() > Date.now())).length,
+      rateLimited24h: recent.filter(({ event }) => event.eventType === "rate_limited").length,
+      highSeverity24h: recent.filter(({ event }) => event.severity === "high" || event.severity === "critical").length,
+    },
+  };
 }
 
 // TODO: add feature queries here as your schema grows.

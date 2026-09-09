@@ -578,6 +578,87 @@ export const restoreRuns = mysqlTable(
   table => [index("restore_runs_backup_created_idx").on(table.backupRunId, table.createdAt)],
 );
 
+export const securitySettings = mysqlTable(
+  "security_settings",
+  {
+    id: int("id").primaryKey(),
+    allowlistEnabled: boolean("allowlistEnabled").default(false).notNull(),
+    rateLimitRequests: int("rateLimitRequests").default(120).notNull(),
+    rateLimitWindowSeconds: int("rateLimitWindowSeconds").default(60).notNull(),
+    autoBlockThreshold: int("autoBlockThreshold").default(0).notNull(),
+    autoBlockDurationMinutes: int("autoBlockDurationMinutes").default(30).notNull(),
+    updatedByUserId: int("updatedByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.updatedByUserId],
+      foreignColumns: [users.id],
+      name: "ss_updated_fk",
+    }).onDelete("set null"),
+  ],
+);
+
+export const securityIpPolicies = mysqlTable(
+  "security_ip_policies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    mode: mysqlEnum("mode", ["allow", "block"]).notNull(),
+    ipAddress: varchar("ipAddress", { length: 45 }).notNull(),
+    label: varchar("label", { length: 160 }).notNull(),
+    expiresAt: timestamp("expiresAt"),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdByUserId: int("createdByUserId"),
+    revokedAt: timestamp("revokedAt"),
+    revokedByUserId: int("revokedByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: "sip_created_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.revokedByUserId],
+      foreignColumns: [users.id],
+      name: "sip_revoked_fk",
+    }).onDelete("set null"),
+    uniqueIndex("security_ip_policies_mode_ip_unique").on(table.mode, table.ipAddress),
+    index("security_ip_policies_active_idx").on(table.isActive, table.mode, table.expiresAt),
+  ],
+);
+
+export const securityEvents = mysqlTable(
+  "security_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    correlationId: varchar("correlationId", { length: 64 }).notNull(),
+    eventType: varchar("eventType", { length: 120 }).notNull(),
+    severity: mysqlEnum("severity", ["info", "low", "medium", "high", "critical"]).notNull(),
+    ipAddress: varchar("ipAddress", { length: 45 }),
+    method: varchar("method", { length: 12 }),
+    requestPath: varchar("requestPath", { length: 240 }),
+    userAgentHash: varchar("userAgentHash", { length: 64 }),
+    actorUserId: int("actorUserId"),
+    detailsJson: text("detailsJson"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+      name: "se_actor_fk",
+    }).onDelete("set null"),
+    index("security_events_corr_created_idx").on(table.correlationId, table.createdAt),
+    index("security_events_ip_created_idx").on(table.ipAddress, table.createdAt),
+    index("security_events_severity_created_idx").on(table.severity, table.createdAt),
+    index("security_events_type_created_idx").on(table.eventType, table.createdAt),
+  ],
+);
+
 export const operationAuditEvents = mysqlTable(
   "operation_audit_events",
   {
@@ -616,3 +697,6 @@ export type BackupDestination = typeof backupDestinations.$inferSelect;
 export type BackupRun = typeof backupRuns.$inferSelect;
 export type RestoreRun = typeof restoreRuns.$inferSelect;
 export type OperationAuditEvent = typeof operationAuditEvents.$inferSelect;
+export type SecuritySettings = typeof securitySettings.$inferSelect;
+export type SecurityIpPolicy = typeof securityIpPolicies.$inferSelect;
+export type SecurityEvent = typeof securityEvents.$inferSelect;

@@ -1,0 +1,1 @@
+ALTER TABLE `security_ip_policies` MODIFY COLUMN `createdByUserId` int;

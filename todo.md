@@ -128,3 +128,8 @@
 - [x] Capture and document a current tablet-width safe-fallback verification for the notification, request-management, and revised sidebar after the latest updates.
 - [x] Replace the overlapping sidebar category-pill treatment with a reserved-space professional heading layout that cannot cover navigation rows.
 - [x] Verify the corrected sidebar hierarchy, active states, lock indicators, and touch targets at desktop, tablet, and mobile widths.
+- [x] Add a server-enforced, administrator-only Security Center with a correlation-aware security and audit event timeline.
+- [x] Add validated IP allowlist and blocklist policies with safe precedence, expiry, audit provenance, and application-level enforcement.
+- [x] Add defensive threat-response controls for rate-limit events, suspicious request patterns, and administrator-configured temporary IP blocks.
+- [x] Build responsive Security Center dashboards for event search, filtering, correlation review, IP policy management, and safe unblock workflows.
+- [x] Add regression tests, database migration validation, security documentation, and isolated acceptance evidence for Security Center enforcement.
