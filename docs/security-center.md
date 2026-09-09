@@ -45,6 +45,22 @@ Security events record the following data for authorized Security Center viewers
 
 The timeline can be filtered by text, severity, or correlation ID. Selecting a correlation ID from an event applies that exact filter to facilitate incident review.
 
+## CSV export and seven-day analytics
+
+The Security Center now supports a **filtered CSV export** for offline investigation. Exports are restricted to administrators, use the same exact correlation ID, exact IP, severity, threat type, keyword, and date filters as the on-screen timeline, and are capped at 5,000 rows and a 90-day date window. Each export action creates a `security_events_exported` audit event that records the export row count and non-sensitive filter summary. The downloaded CSV uses a UTF-8 content type, quoted cells, normalized line breaks, and spreadsheet-formula neutralization for cells beginning with formula-significant characters.
+
+The analytics cards use live security events from the preceding seven days. **Top blocked IP addresses** aggregates blocked-request and automatic-block events. **Most frequent security threats** aggregates block, allowlist-rejection, suspicious-request, rate-limit, and automatic-block events while excluding routine administrative policy actions. Both charts update from the authoritative event log and do not use seed or simulated security data.
+
+| Investigation control | Behavior |
+|---|---|
+| Free-text search | Matches recorded correlation IDs, source IPs, event types, and paths. |
+| Exact correlation ID | Narrows the event set to a single request or response chain. |
+| Exact IP address | Narrows the event set to one validated IPv4 or IPv6 source address. |
+| Severity and threat type | Allows focused review of a category or escalation level. |
+| UTC date range | Supports a bounded inclusive date interval of up to 90 days. |
+| Result limit | Keeps browser investigation views within 50, 100, 250, or 500 rows. |
+| CSV export | Exports up to 5,000 records matching the active filters and creates an audit event. |
+
 ## Scope and deployment guidance
 
 The Security Center is **not a substitute for a perimeter firewall, web application firewall, reverse proxy, operating-system patching, secure TLS configuration, Microsoft Entra conditional access, endpoint protection, backups, or incident response**. It is an application-layer control and cannot block packets before they reach the hosting provider or proxy.
@@ -53,9 +69,10 @@ For a Docker, VPS, Azure, or Hostinger deployment, set `TRUST_PROXY=true` only w
 
 ## Administrative response workflow
 
-1. Filter the Security Center timeline by a correlation ID, source IP, or severity.
+1. Filter the Security Center timeline by a correlation ID, source IP, threat type, severity, or date range.
 2. Verify the source, path, timing, and related administrator events before acting.
-3. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
-4. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
-5. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
-6. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.
+3. Use **Export CSV** to preserve the exact filtered event set for offline analysis; the Security Center records the export action.
+4. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
+5. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
+6. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
+7. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.

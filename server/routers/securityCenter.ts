@@ -4,6 +4,7 @@ import { z } from "zod";
 import * as db from "../db";
 import { adminProcedure, router } from "../_core/trpc";
 import { CORRELATION_ID_HEADER, getTrustedClientIp, normalizeClientIp } from "../security/securityCenter";
+import { buildSecurityEventsCsv, SECURITY_THREAT_EVENT_TYPES } from "../security/securityAnalytics";
 
 const severity = z.enum(["info", "low", "medium", "high", "critical"]);
 const securitySettingsSchema = z.object({
@@ -14,6 +15,29 @@ const securitySettingsSchema = z.object({
   autoBlockDurationMinutes: z.number().int().min(5).max(43_200),
 });
 const ipAddress = z.string().trim().max(45).refine(value => normalizeClientIp(value) !== "unknown", "Enter a valid IPv4 or IPv6 address.");
+const securityEventFilterShape = {
+  correlationId: z.string().trim().max(64).optional(),
+  ipAddress: ipAddress.optional(),
+  severity: severity.optional(),
+  eventType: z.string().trim().max(120).optional(),
+  search: z.string().trim().max(100).optional(),
+  fromDate: z.coerce.date().optional(),
+  toDate: z.coerce.date().optional(),
+};
+
+function validatedEventFilters(maxLimit: number) {
+  return z.object({ ...securityEventFilterShape, limit: z.number().int().min(1).max(maxLimit).optional() }).superRefine((input, ctx) => {
+    if (input.fromDate && input.toDate && input.fromDate > input.toDate) {
+      ctx.addIssue({ code: "custom", path: ["toDate"], message: "The end date must be on or after the start date." });
+    }
+    if (input.fromDate && input.toDate && input.toDate.getTime() - input.fromDate.getTime() > 90 * 24 * 60 * 60 * 1000) {
+      ctx.addIssue({ code: "custom", path: ["toDate"], message: "Investigation queries are limited to a 90-day date range." });
+    }
+  });
+}
+
+const eventQuerySchema = validatedEventFilters(500);
+const eventExportSchema = validatedEventFilters(5_000);
 
 function correlationId(ctx: { res: { getHeader: (name: string) => number | string | string[] | undefined } }) {
   const header = ctx.res.getHeader(CORRELATION_ID_HEADER);
@@ -44,14 +68,33 @@ export const securityCenterRouter = router({
     currentIpAddress: getTrustedClientIp(ctx.req),
   })),
 
-  events: adminProcedure.input(z.object({
-    correlationId: z.string().trim().max(64).optional(),
-    ipAddress: ipAddress.optional(),
-    severity: severity.optional(),
-    eventType: z.string().trim().max(120).optional(),
-    search: z.string().trim().max(100).optional(),
-    limit: z.number().int().min(1).max(500).optional(),
-  })).query(({ input }) => db.listSecurityEvents(input)),
+  events: adminProcedure.input(eventQuerySchema).query(({ input }) => db.listSecurityEvents(input)),
+
+  analytics: adminProcedure.query(() => db.getSecurityAnalytics()),
+
+  exportEvents: adminProcedure.input(eventExportSchema).mutation(async ({ ctx, input }) => {
+    const rows = await db.listSecurityEvents({ ...input, limit: input.limit ?? 5_000 });
+    const csv = buildSecurityEventsCsv(rows.map(({ event, actorName, actorEmail }) => ({ ...event, actorName, actorEmail })));
+    await appendAdministratorSecurityEvent({
+      ctx,
+      eventType: "security_events_exported",
+      severity: "low",
+      details: {
+        rowCount: rows.length,
+        correlationId: input.correlationId ?? null,
+        ipAddress: input.ipAddress ?? null,
+        severity: input.severity ?? null,
+        eventType: input.eventType ?? null,
+        fromDate: input.fromDate?.toISOString() ?? null,
+        toDate: input.toDate?.toISOString() ?? null,
+        hasSearchTerm: Boolean(input.search),
+      },
+    });
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    return { fileName: `welfare-pride-security-events-${dateLabel}.csv`, csv, rowCount: rows.length };
+  }),
+
+  threatEventTypes: adminProcedure.query(() => SECURITY_THREAT_EVENT_TYPES),
 
   saveSettings: adminProcedure.input(securitySettingsSchema).mutation(async ({ ctx, input }) => {
     const currentIpAddress = getTrustedClientIp(ctx.req);

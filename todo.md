@@ -133,3 +133,7 @@
 - [x] Add defensive threat-response controls for rate-limit events, suspicious request patterns, and administrator-configured temporary IP blocks.
 - [x] Build responsive Security Center dashboards for event search, filtering, correlation review, IP policy management, and safe unblock workflows.
 - [x] Add regression tests, database migration validation, security documentation, and isolated acceptance evidence for Security Center enforcement.
+- [x] Add an administrator-only CSV export of Security Center audit events with the active investigation filters applied and an export audit record.
+- [x] Add seven-day Security Center analytics for top blocked IP addresses and most frequent security threat types, using live security-event data.
+- [x] Extend Security Center investigation filters with exact correlation ID, exact IP, event type, severity, date range, and bounded result controls.
+- [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for Security Center exports and analytics.

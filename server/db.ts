@@ -36,6 +36,7 @@ import {
   securitySettings,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
+import { buildSecurityAnalytics } from "./security/securityAnalytics";
 import { BUILT_IN_PORTAL_RESOURCES, type PortalAssignmentSubjectType, type PortalResourceAccessMode } from "../shared/portalAccess";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1539,6 +1540,8 @@ export type SecurityEventFilters = {
   severity?: "info" | "low" | "medium" | "high" | "critical";
   eventType?: string;
   search?: string;
+  fromDate?: Date;
+  toDate?: Date;
   limit?: number;
 };
 
@@ -1550,6 +1553,8 @@ export async function listSecurityEvents(filters: SecurityEventFilters = {}) {
   if (filters.ipAddress) conditions.push(eq(securityEvents.ipAddress, filters.ipAddress));
   if (filters.severity) conditions.push(eq(securityEvents.severity, filters.severity));
   if (filters.eventType) conditions.push(eq(securityEvents.eventType, filters.eventType));
+  if (filters.fromDate) conditions.push(gte(securityEvents.createdAt, filters.fromDate));
+  if (filters.toDate) conditions.push(lte(securityEvents.createdAt, filters.toDate));
   if (filters.search) {
     const match = `%${filters.search.trim().slice(0, 100)}%`;
     conditions.push(or(
@@ -1564,7 +1569,13 @@ export async function listSecurityEvents(filters: SecurityEventFilters = {}) {
     .leftJoin(users, eq(securityEvents.actorUserId, users.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(securityEvents.createdAt), desc(securityEvents.id))
-    .limit(Math.min(Math.max(filters.limit ?? 200, 1), 500));
+    .limit(Math.min(Math.max(filters.limit ?? 200, 1), 5_000));
+}
+
+export async function getSecurityAnalytics(now = new Date()) {
+  const windowStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const rows = await listSecurityEvents({ fromDate: windowStart, toDate: now, limit: 5_000 });
+  return buildSecurityAnalytics(rows.map(({ event }) => event), now);
 }
 
 export async function getSecurityOverview() {
