@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -35,6 +35,9 @@ import {
   securityIpPolicies,
   securitySettings,
   securityAlertNotifications,
+  securityEventReadCursors,
+  securityEscalationOwners,
+  securityIncidentCases,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 import { buildSecurityAnalytics } from "./security/securityAnalytics";
@@ -1549,7 +1552,9 @@ async function maybeCreateSecurityAlertNotifications(input: { eventId: number; e
   ));
   const matchedEventCount = Number(countResult?.count || 0);
   if (!shouldTriggerHighSeverityAlert({ alertingEnabled: settings.alertingEnabled, threshold: settings.highSeverityAlertThreshold, matchedEventCount })) return;
-  const recipients = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+  const owners = await db.select({ id: securityEscalationOwners.userId }).from(securityEscalationOwners)
+    .innerJoin(users, eq(securityEscalationOwners.userId, users.id)).where(eq(users.role, "admin"));
+  const recipients = owners.length ? owners : await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
   if (!recipients.length) return;
   await db.insert(securityAlertNotifications).values(recipients.map(recipient => ({
     triggerEventId: input.eventId,
@@ -1649,6 +1654,96 @@ export async function markSecurityAlertNotificationsRead(recipientUserId: number
     eq(securityAlertNotifications.recipientUserId, recipientUserId),
     isNull(securityAlertNotifications.readAt),
   ));
+}
+
+export async function listUnreadSecurityEvents(recipientUserId: number, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  const [cursor] = await db.select().from(securityEventReadCursors).where(eq(securityEventReadCursors.recipientUserId, recipientUserId)).limit(1);
+  return db.select({ event: securityEvents, actorName: users.name, actorEmail: users.email }).from(securityEvents)
+    .leftJoin(users, eq(securityEvents.actorUserId, users.id))
+    .where(gt(securityEvents.id, cursor?.lastReadEventId ?? 0))
+    .orderBy(desc(securityEvents.id))
+    .limit(Math.min(Math.max(limit, 1), 25));
+}
+
+export async function getUnreadSecurityEventCount(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const [cursor] = await db.select().from(securityEventReadCursors).where(eq(securityEventReadCursors.recipientUserId, recipientUserId)).limit(1);
+  const [result] = await db.select({ count: sql<number>`count(*)` }).from(securityEvents).where(gt(securityEvents.id, cursor?.lastReadEventId ?? 0));
+  return Number(result?.count || 0);
+}
+
+export async function markSecurityEventsRead(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [latest] = await db.select({ id: securityEvents.id }).from(securityEvents).orderBy(desc(securityEvents.id)).limit(1);
+  const lastReadEventId = latest?.id ?? 0;
+  await db.insert(securityEventReadCursors).values({ recipientUserId, lastReadEventId, readAt: new Date() }).onDuplicateKeyUpdate({
+    set: { lastReadEventId, readAt: new Date() },
+  });
+}
+
+export async function listSecurityAdministrators() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.role, "admin")).orderBy(asc(users.name), asc(users.email));
+}
+
+export async function listSecurityEscalationOwners() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ userId: securityEscalationOwners.userId, name: users.name, email: users.email, assignedByUserId: securityEscalationOwners.assignedByUserId, createdAt: securityEscalationOwners.createdAt })
+    .from(securityEscalationOwners).innerJoin(users, eq(securityEscalationOwners.userId, users.id)).orderBy(asc(users.name), asc(users.email));
+}
+
+export async function replaceSecurityEscalationOwners(input: { userIds: number[]; assignedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const userIds = Array.from(new Set(input.userIds));
+  const eligible = userIds.length ? await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), inArray(users.id, userIds))) : [];
+  if (eligible.length !== userIds.length) throw new Error("Only active administrators can be assigned as escalation owners.");
+  await db.transaction(async tx => {
+    if (!userIds.length) { await tx.delete(securityEscalationOwners); return; }
+    await tx.delete(securityEscalationOwners).where(notInArray(securityEscalationOwners.userId, userIds));
+    await tx.insert(securityEscalationOwners).values(userIds.map(userId => ({ userId, assignedByUserId: input.assignedByUserId }))).onDuplicateKeyUpdate({ set: { assignedByUserId: input.assignedByUserId, updatedAt: new Date() } });
+  });
+  return listSecurityEscalationOwners();
+}
+
+export async function getSecurityIncidentCase(triggerEventId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(securityIncidentCases).where(eq(securityIncidentCases.triggerEventId, triggerEventId)).limit(1))[0];
+}
+
+async function requireEscalationOwner(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number) {
+  const [owner] = await db.select({ userId: securityEscalationOwners.userId }).from(securityEscalationOwners).where(eq(securityEscalationOwners.userId, userId)).limit(1);
+  if (!owner) throw new Error("Select an administrator assigned as a Security Center escalation owner.");
+}
+
+export async function acknowledgeCriticalSecurityIncident(input: { triggerEventId: number; ownerUserId: number; acknowledgedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [event] = await db.select().from(securityEvents).where(eq(securityEvents.id, input.triggerEventId)).limit(1);
+  if (!event || event.severity !== "critical") throw new Error("Only critical security events can be acknowledged as incident cases.");
+  await requireEscalationOwner(db, input.ownerUserId);
+  const existing = await getSecurityIncidentCase(input.triggerEventId);
+  if (existing) return existing;
+  const caseReference = `SEC-${event.createdAt.toISOString().slice(0, 10).replaceAll("-", "")}-${event.id}`;
+  await db.insert(securityIncidentCases).values({ triggerEventId: event.id, caseReference, ownerUserId: input.ownerUserId, acknowledgedByUserId: input.acknowledgedByUserId });
+  return getSecurityIncidentCase(event.id);
+}
+
+export async function resolveCriticalSecurityIncident(input: { triggerEventId: number; resolutionNotes: string; resolvedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const current = await getSecurityIncidentCase(input.triggerEventId);
+  if (!current) throw new Error("A critical incident must be acknowledged before it can be resolved.");
+  if (current.status === "resolved") return current;
+  await db.update(securityIncidentCases).set({ status: "resolved", resolutionNotes: input.resolutionNotes, resolvedByUserId: input.resolvedByUserId, resolvedAt: new Date(), updatedAt: new Date() }).where(eq(securityIncidentCases.triggerEventId, input.triggerEventId));
+  return getSecurityIncidentCase(input.triggerEventId);
 }
 
 export async function getSecurityAnalytics(now = new Date()) {

@@ -76,7 +76,7 @@ export const securityCenterRouter = router({
   eventDetail: adminProcedure.input(z.object({ eventId: z.number().int().positive() })).query(async ({ input }) => {
     const detail = await db.getSecurityEventDetail(input.eventId);
     if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Security event not found." });
-    return detail;
+    return { ...detail, incidentCase: await db.getSecurityIncidentCase(input.eventId) };
   }),
 
   analytics: adminProcedure.query(() => db.getSecurityAnalytics()),
@@ -113,6 +113,39 @@ export const securityCenterRouter = router({
   markAlertNotificationsRead: adminProcedure.mutation(async ({ ctx }) => {
     await db.markSecurityAlertNotificationsRead(ctx.user.id);
     return { success: true } as const;
+  }),
+
+  unreadEvents: adminProcedure.query(async ({ ctx }) => ({
+    unreadCount: await db.getUnreadSecurityEventCount(ctx.user.id),
+    events: await db.listUnreadSecurityEvents(ctx.user.id),
+  })),
+
+  markEventsRead: adminProcedure.mutation(async ({ ctx }) => {
+    await db.markSecurityEventsRead(ctx.user.id);
+    return { success: true } as const;
+  }),
+
+  escalationOwners: adminProcedure.query(async () => ({
+    administrators: await db.listSecurityAdministrators(),
+    owners: await db.listSecurityEscalationOwners(),
+  })),
+
+  saveEscalationOwners: adminProcedure.input(z.object({ userIds: z.array(z.number().int().positive()).max(100) })).mutation(async ({ ctx, input }) => {
+    const owners = await db.replaceSecurityEscalationOwners({ userIds: input.userIds, assignedByUserId: ctx.user.id });
+    await appendAdministratorSecurityEvent({ ctx, eventType: "security_escalation_owners_updated", severity: "medium", details: { ownerUserIds: owners.map(owner => owner.userId) } });
+    return owners;
+  }),
+
+  acknowledgeCriticalIncident: adminProcedure.input(z.object({ eventId: z.number().int().positive(), ownerUserId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const incidentCase = await db.acknowledgeCriticalSecurityIncident({ triggerEventId: input.eventId, ownerUserId: input.ownerUserId, acknowledgedByUserId: ctx.user.id });
+    await appendAdministratorSecurityEvent({ ctx, eventType: "critical_incident_acknowledged", severity: "medium", details: { triggerEventId: input.eventId, caseReference: incidentCase?.caseReference, ownerUserId: input.ownerUserId } });
+    return incidentCase;
+  }),
+
+  resolveCriticalIncident: adminProcedure.input(z.object({ eventId: z.number().int().positive(), resolutionNotes: z.string().trim().min(3).max(2_000) })).mutation(async ({ ctx, input }) => {
+    const incidentCase = await db.resolveCriticalSecurityIncident({ triggerEventId: input.eventId, resolutionNotes: input.resolutionNotes, resolvedByUserId: ctx.user.id });
+    await appendAdministratorSecurityEvent({ ctx, eventType: "critical_incident_resolved", severity: "low", details: { triggerEventId: input.eventId, caseReference: incidentCase?.caseReference } });
+    return incidentCase;
   }),
 
   saveSettings: adminProcedure.input(securitySettingsSchema).mutation(async ({ ctx, input }) => {

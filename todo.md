@@ -141,3 +141,7 @@
 - [x] Add chart drill-through interactions that apply the selected IP address or threat type directly to the advanced audit-log filters.
 - [x] Add configurable high-severity alert thresholds, durable per-administrator Security Center alerts, read-state handling, and in-app notifications.
 - [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for Security Center investigations and alerts.
+- [x] Add a live administrator navigation badge for unread Security Center security events with safe polling and role-based visibility.
+- [x] Add administrator-managed escalation-owner assignments for high-severity Security Center alerts with durable assignment audit history.
+- [x] Add a controlled critical-alert acknowledgement and incident-case tracking workflow with case reference, status, assignee, timestamps, and audit events.
+- [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for security-event badges, escalation ownership, and critical incident cases.

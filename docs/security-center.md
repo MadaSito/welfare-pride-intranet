@@ -81,6 +81,14 @@ Administrators can configure the **Security alert bell** in the Security Center.
 
 The Security Center alert bell is not a replacement for external 24/7 monitoring. It is an authenticated administrator notification within the portal. Maintain perimeter alerts and incident-response procedures separately for after-hours coverage.
 
+## Live event badge, escalation ownership, and incident cases
+
+The navigation bar includes a separate **Security events** badge for administrators. It refreshes at a short interval and shows the recipient’s count of newly recorded Security Center events. Opening its menu lists recent events and marks that administrator’s event cursor as read. This state is stored per administrator, so one person opening the menu never clears another administrator’s badge.
+
+The **Escalation owners** panel limits future threshold-alert recipients to the selected active administrator roster. If the roster is empty, the alert system uses the existing all-administrator fallback so a configuration gap cannot silently drop alerts. Only selected escalation owners may be assigned to a critical incident case.
+
+When an administrator opens a critical event in the investigation dialog, they can acknowledge it by selecting an escalation owner. The portal creates a unique case reference in the form `SEC-YYYYMMDD-eventId`, records the acknowledger, timestamp, owner, and a Security Center audit event. The assignee or any authorized administrator can then record resolution notes and mark the case resolved. A case cannot be resolved before acknowledgement, and an acknowledgement or resolution action cannot be performed for a non-critical event.
+
 ## Scope and deployment guidance
 
 The Security Center is **not a substitute for a perimeter firewall, web application firewall, reverse proxy, operating-system patching, secure TLS configuration, Microsoft Entra conditional access, endpoint protection, backups, or incident response**. It is an application-layer control and cannot block packets before they reach the hosting provider or proxy.
@@ -94,7 +102,9 @@ For a Docker, VPS, Azure, or Hostinger deployment, set `TRUST_PROXY=true` only w
 3. Use **Export CSV** to preserve the exact filtered event set for offline analysis; the Security Center records the export action.
 4. Select a chart bar to inspect its exact IP or threat-type event set, then open an event to review captured metadata and related correlation records.
 5. Configure a modest high-severity threshold and rolling window appropriate to the organization’s normal event volume; test the administrator alert bell in a controlled environment.
-6. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
-7. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
-8. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
-9. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.
+6. Assign at least two on-call administrators as escalation owners. Confirm the navigation badge and alert bell are visible to them after a controlled test event.
+7. For a critical alert, acknowledge the event in its investigation dialog, assign an escalation owner, record the case reference in the incident record, and only resolve it after adding meaningful resolution notes.
+8. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
+9. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
+10. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
+11. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.

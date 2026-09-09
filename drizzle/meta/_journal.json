@@ -127,6 +127,13 @@
       "when": 1788970305377,
       "tag": "0017_ordinary_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1788972251725,
+      "tag": "0018_loving_sauron",
+      "breakpoints": true
     }
   ]
 }

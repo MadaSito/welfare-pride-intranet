@@ -693,6 +693,59 @@ export const securityAlertNotifications = mysqlTable(
   ],
 );
 
+export const securityEventReadCursors = mysqlTable(
+  "security_event_read_cursors",
+  {
+    recipientUserId: int("recipientUserId").primaryKey(),
+    lastReadEventId: int("lastReadEventId").default(0).notNull(),
+    readAt: timestamp("readAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.recipientUserId], foreignColumns: [users.id], name: "serc_recipient_fk" }).onDelete("cascade"),
+  ],
+);
+
+export const securityEscalationOwners = mysqlTable(
+  "security_escalation_owners",
+  {
+    userId: int("userId").primaryKey(),
+    assignedByUserId: int("assignedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "seo_user_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [table.assignedByUserId], foreignColumns: [users.id], name: "seo_assigned_fk" }).onDelete("restrict"),
+  ],
+);
+
+export const securityIncidentCases = mysqlTable(
+  "security_incident_cases",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    triggerEventId: int("triggerEventId").notNull(),
+    caseReference: varchar("caseReference", { length: 80 }).notNull(),
+    status: mysqlEnum("status", ["acknowledged", "resolved"]).default("acknowledged").notNull(),
+    ownerUserId: int("ownerUserId"),
+    acknowledgedByUserId: int("acknowledgedByUserId").notNull(),
+    acknowledgedAt: timestamp("acknowledgedAt").defaultNow().notNull(),
+    resolutionNotes: text("resolutionNotes"),
+    resolvedByUserId: int("resolvedByUserId"),
+    resolvedAt: timestamp("resolvedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.triggerEventId], foreignColumns: [securityEvents.id], name: "sic_event_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [table.ownerUserId], foreignColumns: [users.id], name: "sic_owner_fk" }).onDelete("set null"),
+    foreignKey({ columns: [table.acknowledgedByUserId], foreignColumns: [users.id], name: "sic_ack_fk" }).onDelete("restrict"),
+    foreignKey({ columns: [table.resolvedByUserId], foreignColumns: [users.id], name: "sic_resolved_fk" }).onDelete("set null"),
+    uniqueIndex("security_incident_case_event_unique").on(table.triggerEventId),
+    uniqueIndex("security_incident_case_ref_unique").on(table.caseReference),
+    index("security_incident_case_status_idx").on(table.status, table.updatedAt),
+  ],
+);
+
 export const operationAuditEvents = mysqlTable(
   "operation_audit_events",
   {
@@ -735,3 +788,6 @@ export type SecuritySettings = typeof securitySettings.$inferSelect;
 export type SecurityIpPolicy = typeof securityIpPolicies.$inferSelect;
 export type SecurityEvent = typeof securityEvents.$inferSelect;
 export type SecurityAlertNotification = typeof securityAlertNotifications.$inferSelect;
+export type SecurityEventReadCursor = typeof securityEventReadCursors.$inferSelect;
+export type SecurityEscalationOwner = typeof securityEscalationOwners.$inferSelect;
+export type SecurityIncidentCase = typeof securityIncidentCases.$inferSelect;
