@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { ArchiveRestore, BriefcaseBusiness, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LockKeyhole, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
@@ -19,7 +19,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { LocalSecurityCompletion } from "./LocalSecurityCompletion";
 
-type NavItem = { icon: LucideIcon; label: string; path: string };
+type NavItem = { icon: LucideIcon; label: string; path: string; restricted?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
 
 const iconByKey: Record<string, LucideIcon> = {
@@ -186,7 +186,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (authState && authState !== "full") return <LocalSecurityCompletion authState={authState} />;
 
   return (
-    <SidebarProvider style={{ "--sidebar-width": "17.5rem", "--sidebar-width-icon": "4.75rem" } as CSSProperties}>
+    <SidebarProvider style={{ "--sidebar-width": "20.5rem", "--sidebar-width-icon": "4.75rem" } as CSSProperties}>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
     </SidebarProvider>
   );
@@ -202,7 +202,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
     const grouped = new Map<string, NavItem[]>();
     for (const resource of portalNavigation.data?.resources || []) {
       const items = grouped.get(resource.navigationGroup) || [];
-      items.push({ label: resource.label, path: resource.path, icon: iconByKey[resource.iconKey] || FileText });
+      items.push({ label: resource.label, path: resource.path, icon: iconByKey[resource.iconKey] || FileText, restricted: resource.accessMode === "restricted" });
       grouped.set(resource.navigationGroup, items);
     }
     return Array.from(grouped, ([label, items]) => ({ label, items }));
@@ -230,13 +230,13 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="px-2 py-3">
+        <SidebarContent className="overflow-y-auto px-3 py-4">
           {portalNavigation.isLoading ? <div className="space-y-3 px-3 py-2"><div className="h-3 w-20 rounded bg-muted" /><div className="h-10 rounded-xl bg-muted/60" /><div className="h-10 rounded-xl bg-muted/60" /></div> : null}
           {navigationGroups.map(group => (
-            <SidebarGroup key={group.label} className="py-1">
-              <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.17em] text-muted-foreground/75">{group.label}</SidebarGroupLabel>
+            <SidebarGroup key={group.label} className="mb-3 p-0">
+              <p className="px-3 pb-2 pt-3 text-[11px] font-extrabold uppercase leading-none tracking-[0.18em] text-[#5A92C9]/80 group-data-[collapsible=icon]:sr-only">{group.label}</p>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-1">
                   {group.items.map(item => {
                     const active = item.path === "/" ? location === "/" : location.startsWith(item.path);
                     return (
@@ -244,11 +244,13 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
                         <SidebarMenuButton
                           isActive={active}
                           onClick={() => setLocation(item.path)}
-                          tooltip={item.label}
-                          className={cn("h-10 rounded-xl px-3 font-medium", active && "bg-[#5A92C9]/12 text-[#376F9F]")}
+                          tooltip={item.restricted ? `${item.label} · Restricted access managed by user or Entra group policy` : item.label}
+                          aria-label={item.restricted ? `${item.label}, restricted access managed by a user or Entra group policy` : item.label}
+                          className={cn("h-12 rounded-xl px-3 text-[15px] font-semibold transition-colors", active ? "bg-[#5A92C9]/14 text-[#265E8B] shadow-sm" : "text-foreground/85 hover:bg-[#5A92C9]/7 hover:text-[#265E8B]")}
                         >
-                          <item.icon className={cn("h-[18px] w-[18px]", active ? "text-[#5A92C9]" : "text-muted-foreground")} />
-                          <span>{item.label}</span>
+                          <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#5A92C9]" : "text-muted-foreground")} />
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          {item.restricted ? <><LockKeyhole className="h-3.5 w-3.5 shrink-0 text-[#D58240] group-data-[collapsible=icon]:hidden" aria-hidden="true" /><span className="sr-only">Restricted access managed by user or Entra group policy.</span></> : null}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );
@@ -259,17 +261,17 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           ))}
 
           {user?.role === "admin" ? (
-            <SidebarGroup className="py-1">
-              <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.17em] text-[#D58240]">Administration</SidebarGroupLabel>
+            <SidebarGroup className="mb-2 p-0">
+              <p className="px-3 pb-2 pt-3 text-[11px] font-extrabold uppercase leading-none tracking-[0.18em] text-[#D58240] group-data-[collapsible=icon]:sr-only">Administration</p>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="gap-1">
                   {adminItems.map(item => {
                     const active = location.startsWith(item.path);
                     return (
                       <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-10 rounded-xl px-3 font-medium", active && "bg-[#D58240]/10 text-[#9A5727]") }>
-                          <item.icon className={cn("h-[18px] w-[18px]", active ? "text-[#D58240]" : "text-muted-foreground")} />
-                          <span>{item.label}</span>
+                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-12 rounded-xl px-3 text-[15px] font-semibold", active ? "bg-[#D58240]/12 text-[#8A4D25] shadow-sm" : "text-foreground/85 hover:bg-[#D58240]/6 hover:text-[#8A4D25]") }>
+                          <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#D58240]" : "text-muted-foreground")} />
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );

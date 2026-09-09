@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, BookmarkCheck, CalendarClock, CalendarDays, CloudCog, ExternalLink, FileText, Link2, Loader2, Megaphone, Network, ShieldCheck, Trash2, Users } from "lucide-react";
+import { ArrowRight, BookmarkCheck, BriefcaseBusiness, CalendarClock, CalendarDays, CloudCog, ExternalLink, FileText, Link2, Loader2, LockKeyhole, Megaphone, Network, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
@@ -24,6 +24,13 @@ export default function Home() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const pins = trpc.dashboardPins.list.useQuery();
+  const portalNavigation = trpc.portalAccess.navigation.useQuery();
+  const accessOverview = trpc.portalAccess.adminOverview.useQuery(undefined, { enabled: user?.role === "admin" });
+  const businessResource = accessOverview.data?.resources.find(resource => resource.resourceKey === "module:business-management");
+  const businessAssignments = trpc.portalAccess.adminAssignments.useQuery(
+    { resourceId: businessResource?.id || 1 },
+    { enabled: user?.role === "admin" && Boolean(businessResource?.id) },
+  );
   const utils = trpc.useUtils();
   const removePin = trpc.dashboardPins.remove.useMutation({
     onSuccess: async () => {
@@ -34,6 +41,10 @@ export default function Home() {
   });
   const firstName = user?.name?.split(" ")[0] || "there";
   const today = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
+  const businessUsers = (businessAssignments.data || []).filter(item => item.userId).map(item => accessOverview.data?.users.find(userItem => userItem.id === item.userId)).filter(Boolean);
+  const businessGroups = (businessAssignments.data || []).filter(item => item.entraGroupId).map(item => accessOverview.data?.groups.find(group => group.groupId === item.entraGroupId)).filter(Boolean);
+  const visibleModulePaths = new Set((portalNavigation.data?.resources || []).map(resource => resource.path));
+  const visibleWorkspaceModules = modules.filter(module => visibleModulePaths.has(module.path));
 
   return (
     <div className="space-y-7">
@@ -52,6 +63,32 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {user?.role === "admin" ? <section aria-labelledby="business-access-heading">
+        <Card className="overflow-hidden border-0 shadow-soft">
+          <CardHeader className="border-b border-[#D58240]/18 bg-gradient-to-r from-[#D58240]/10 to-white">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#D58240] text-white shadow-sm"><BriefcaseBusiness className="h-5 w-5" /></div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9A5727]">Administrator overview</p>
+                  <CardTitle id="business-access-heading" className="mt-1 text-xl">Business Management access</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">Review the people and Entra groups currently authorized for this restricted section.</p>
+                </div>
+              </div>
+              <Button className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" onClick={() => setLocation("/admin/access-pages?resource=business-management")}><UserCheck className="mr-2 h-4 w-4" />Manage access</Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5">
+            {accessOverview.isLoading || businessAssignments.isLoading ? <div className="grid gap-3 sm:grid-cols-2"><div className="h-20 animate-pulse rounded-xl bg-muted" /><div className="h-20 animate-pulse rounded-xl bg-muted" /></div> : null}
+            {accessOverview.error || businessAssignments.error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Business Management assignments could not be loaded. Open Access & Pages to retry.</div> : null}
+            {businessResource && !accessOverview.isLoading && !businessAssignments.isLoading ? <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="rounded-2xl border border-[#D58240]/22 bg-[#D58240]/5 p-4"><div className="flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-[#D58240]" /><p className="font-semibold">{businessResource.accessMode === "restricted" ? "Restricted audience" : "All authenticated employees"}</p></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{businessResource.accessMode === "restricted" ? "Access is granted only by named user or synchronized Entra group membership." : "Every signed-in employee can open this section."}</p><div className="mt-4 flex flex-wrap gap-2"><Badge variant="outline" className="border-[#5A92C9]/25 bg-white text-[#376F9F]">{businessUsers.length} named user{businessUsers.length === 1 ? "" : "s"}</Badge><Badge variant="outline" className="border-[#D58240]/25 bg-white text-[#9A5727]">{businessGroups.length} Entra group{businessGroups.length === 1 ? "" : "s"}</Badge></div></div>
+              <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-border/80 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5A92C9]">Named users</p>{businessUsers.length ? <ul className="mt-3 space-y-2">{businessUsers.slice(0, 4).map(userItem => <li key={userItem!.id} className="truncate text-sm font-semibold">{userItem!.name || userItem!.email || `User ${userItem!.id}`}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">No direct user assignments.</p>}</div><div className="rounded-2xl border border-border/80 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#D58240]">Entra groups</p>{businessGroups.length ? <ul className="mt-3 space-y-2">{businessGroups.slice(0, 4).map(group => <li key={group!.groupId} className="truncate text-sm font-semibold">{group!.displayName}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">No group assignments.</p>}</div></div>
+            </div> : null}
+          </CardContent>
+        </Card>
+      </section> : null}
 
       <section aria-labelledby="personalized-dashboard-heading">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
@@ -86,7 +123,8 @@ export default function Home() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {modules.map(module => (
+          {portalNavigation.isLoading ? <><div className="h-48 animate-pulse rounded-2xl bg-white shadow-soft" /><div className="h-48 animate-pulse rounded-2xl bg-white shadow-soft" /></> : null}
+          {!portalNavigation.isLoading && visibleWorkspaceModules.map(module => (
             <button key={module.path} onClick={() => setLocation(module.path)} className="group rounded-2xl bg-white p-5 text-left shadow-soft ring-1 ring-border/60 hover:-translate-y-0.5 hover:ring-[#5A92C9]/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5A92C9]">
               <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${module.accent === "blue" ? "bg-[#5A92C9]/10 text-[#5A92C9]" : "bg-[#D58240]/10 text-[#D58240]"}`}>
                 <module.icon className="h-5 w-5" aria-hidden="true" />
@@ -96,6 +134,7 @@ export default function Home() {
               <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#376F9F]">Open module <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
             </button>
           ))}
+          {!portalNavigation.isLoading && !visibleWorkspaceModules.length ? <div className="rounded-2xl border border-dashed border-[#5A92C9]/25 bg-white p-6 text-sm text-muted-foreground sm:col-span-2">Your administrator has not assigned additional workspace modules to this account. Use the resources available in your navigation menu or request access to a restricted page.</div> : null}
         </div>
       </section>
 

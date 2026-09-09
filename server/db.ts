@@ -28,6 +28,7 @@ import {
   userEntraGroupMemberships,
   portalResources,
   portalResourceAssignments,
+  portalAccessRequests,
   accessControlAuditEvents,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
@@ -1179,6 +1180,44 @@ export async function getPortalResourceAssignments(resourceId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(portalResourceAssignments).where(eq(portalResourceAssignments.resourceId, resourceId)).orderBy(asc(portalResourceAssignments.createdAt));
+}
+
+export async function createPortalAccessRequest(input: { resourceId: number; requesterUserId: number; note?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const existing = (await db.select().from(portalAccessRequests).where(and(
+    eq(portalAccessRequests.resourceId, input.resourceId),
+    eq(portalAccessRequests.requesterUserId, input.requesterUserId),
+    eq(portalAccessRequests.status, "pending"),
+  )).limit(1))[0];
+  if (existing) return { request: existing, created: false };
+  const result = await db.insert(portalAccessRequests).values({ resourceId: input.resourceId, requesterUserId: input.requesterUserId, note: input.note?.trim() || null });
+  const request = (await db.select().from(portalAccessRequests).where(eq(portalAccessRequests.id, Number(result[0].insertId))).limit(1))[0];
+  if (!request) throw new Error("Access request could not be created");
+  await appendAccessControlAuditEvent({ action: "portal_access_requested", resourceId: input.resourceId, actorUserId: input.requesterUserId, metadataJson: JSON.stringify({ requestId: request.id }) });
+  return { request, created: true };
+}
+
+export async function listPortalAccessRequests(limit = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(portalAccessRequests).orderBy(desc(portalAccessRequests.createdAt)).limit(Math.min(Math.max(limit, 1), 200));
+}
+
+export async function reviewPortalAccessRequest(input: { requestId: number; reviewerUserId: number; status: "approved" | "declined" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const request = (await db.select().from(portalAccessRequests).where(eq(portalAccessRequests.id, input.requestId)).limit(1))[0];
+  if (!request) throw new Error("Access request not found");
+  if (request.status !== "pending") return request;
+  await db.transaction(async tx => {
+    await tx.update(portalAccessRequests).set({ status: input.status, reviewedByUserId: input.reviewerUserId, reviewedAt: new Date() }).where(eq(portalAccessRequests.id, input.requestId));
+    if (input.status === "approved") {
+      await tx.insert(portalResourceAssignments).values({ resourceId: request.resourceId, subjectType: "user", userId: request.requesterUserId, createdByUserId: input.reviewerUserId }).onDuplicateKeyUpdate({ set: { resourceId: request.resourceId } });
+    }
+  });
+  await appendAccessControlAuditEvent({ action: `portal_access_request_${input.status}`, resourceId: request.resourceId, actorUserId: input.reviewerUserId, metadataJson: JSON.stringify({ requestId: request.id, requesterUserId: request.requesterUserId }) });
+  return (await db.select().from(portalAccessRequests).where(eq(portalAccessRequests.id, request.id)).limit(1))[0]!;
 }
 
 export async function listEntraGroups() {

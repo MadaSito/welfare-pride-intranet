@@ -206,6 +206,29 @@ export const portalResourceAssignments = mysqlTable(
   ],
 );
 
+export const portalAccessRequests = mysqlTable(
+  "portal_access_requests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    resourceId: int("resourceId")
+      .notNull()
+      .references(() => portalResources.id, { onDelete: "cascade" }),
+    requesterUserId: int("requesterUserId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    note: varchar("note", { length: 500 }),
+    status: mysqlEnum("status", ["pending", "approved", "declined"]).default("pending").notNull(),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    index("portal_access_requests_resource_status_idx").on(table.resourceId, table.status, table.createdAt),
+    index("portal_access_requests_requester_status_idx").on(table.requesterUserId, table.status, table.createdAt),
+  ],
+);
+
 export const accessControlAuditEvents = mysqlTable(
   "access_control_audit_events",
   {

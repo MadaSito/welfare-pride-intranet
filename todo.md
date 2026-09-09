@@ -109,3 +109,12 @@
 - [x] Perform a defensive code and deployment security review, remediate verified findings, and document outstanding recommendations.
 - [x] Add authorization, group-visibility, and security-regression tests; validate responsive administration flows and update the operator guide.
 - [x] Remove the unused legacy map component retaining proprietary runtime environment references, then repeat the standalone-source scan.
+- [x] Redesign the sidebar to eliminate overlapping group headings, strengthen hierarchy, and increase navigation item visibility and touch targets.
+- [x] Add an accessible lock indicator and tooltip for restricted navigation resources without exposing inaccessible resources to unauthorized users.
+- [x] Add an administrator dashboard widget showing Business Management access assignments with direct links to manage users and groups.
+- [x] Add a restricted-access page with a clear explanation and authenticated request-access action for direct URL visits.
+- [x] Persist, audit, and administer resource access requests without disclosing protected content to unauthorized requesters.
+- [x] Add regression and responsive tests for sidebar readability, restricted indicators, Business Management administration, and request-access authorization.
+- [x] Add and verify hover and keyboard-focus tooltip text for restricted navigation resources without exposing hidden resources.
+- [x] Add focused regression coverage for restricted-navigation metadata and Business Management administrator summary behavior, then record precise responsive evidence.
+- [ ] Capture and document mobile and tablet authenticated visual verification for the revised sidebar, restricted indicator, Business Management widget, and request-access page.

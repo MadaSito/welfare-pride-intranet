@@ -12,12 +12,14 @@ import { trpc } from "@/lib/trpc";
 import { CheckCircle2, FilePlus2, Loader2, LockKeyhole, Save, ShieldAlert, Trash2, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 type Assignment = { subjectType: "user"; userId: number } | { subjectType: "entra_group"; entraGroupId: string; displayName: string };
 type ResourceForm = { id?: number; resourceType: "module" | "page"; resourceKey?: string; slug: string; label: string; navigationGroup: string; iconKey: string; body: string; accessMode: "all_authenticated" | "restricted"; isPublished: boolean; sortOrder: number };
 const blankPage: ResourceForm = { resourceType: "page", slug: "", label: "", navigationGroup: "Business Management", iconKey: "file-text", body: "", accessMode: "restricted", isPublished: false, sortOrder: 200 };
 
 export default function AccessPages() {
+  const [location] = useLocation();
   const utils = trpc.useUtils();
   const overview = trpc.portalAccess.adminOverview.useQuery();
   const myGroups = trpc.portalAccess.myEntraGroups.useQuery();
@@ -25,14 +27,25 @@ export default function AccessPages() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [groupId, setGroupId] = useState("");
   const [groupName, setGroupName] = useState("");
+  const [deepLinkApplied, setDeepLinkApplied] = useState(false);
   const assignmentsQuery = trpc.portalAccess.adminAssignments.useQuery({ resourceId: form.id || 1 }, { enabled: Boolean(form.id) });
   const save = trpc.portalAccess.saveResource.useMutation({ onSuccess: async resource => { await utils.portalAccess.adminOverview.invalidate(); await utils.portalAccess.navigation.invalidate(); setForm(current => ({ ...current, id: resource.id })); toast.success("Page access policy saved."); }, onError: error => toast.error(error.message) });
   const remove = trpc.portalAccess.deleteCustomResource.useMutation({ onSuccess: async () => { await utils.portalAccess.adminOverview.invalidate(); await utils.portalAccess.navigation.invalidate(); setForm(blankPage); setAssignments([]); toast.success("Custom page removed."); }, onError: error => toast.error(error.message) });
   const refreshMyGroups = trpc.portalAccess.refreshMyEntraGroups.useMutation({ onSuccess: async result => { await Promise.all([myGroups.refetch(), utils.portalAccess.adminOverview.invalidate(), utils.portalAccess.navigation.invalidate()]); toast.success(`${result.synchronized} Entra group${result.synchronized === 1 ? "" : "s"} synchronized.`); }, onError: error => toast.error(error.message) });
+  const reviewRequest = trpc.portalAccess.reviewAccessRequest.useMutation({ onSuccess: async request => { await Promise.all([utils.portalAccess.adminOverview.invalidate(), utils.portalAccess.navigation.invalidate()]); toast.success(`Access request ${request.status}.`); }, onError: error => toast.error(error.message) });
   const resources = overview.data?.resources || [];
   const users = overview.data?.users || [];
   const groups = overview.data?.groups || [];
+  const pendingRequests = (overview.data?.accessRequests || []).filter(request => request.status === "pending");
   const selected = useMemo(() => resources.find(resource => resource.id === form.id), [resources, form.id]);
+  const requestedResourceKey = useMemo(() => new URLSearchParams(location.split("?")[1] || "").get("resource"), [location]);
+
+  useEffect(() => {
+    if (deepLinkApplied || !requestedResourceKey || !resources.length) return;
+    const resource = resources.find(item => item.resourceKey === `module:${requestedResourceKey}` || item.resourceKey === requestedResourceKey);
+    if (resource) selectResource(resource.id);
+    setDeepLinkApplied(true);
+  }, [deepLinkApplied, requestedResourceKey, resources]);
 
   useEffect(() => {
     if (!assignmentsQuery.data) return;
@@ -72,6 +85,7 @@ export default function AccessPages() {
     <Alert className="border-[#D58240]/25 bg-[#D58240]/5"><ShieldAlert className="h-4 w-4 text-[#D58240]" /><AlertTitle>Entra group availability</AlertTitle><AlertDescription>Groups appear here after an Entra user signs in with the required delegated group-membership permission, or may be entered by object ID. Group display names are informational; authorization uses immutable Entra object IDs.</AlertDescription></Alert>
     {overview.error ? <Alert variant="destructive"><ShieldAlert className="h-4 w-4" /><AlertTitle>Access configuration could not load</AlertTitle><AlertDescription>{overview.error.message}</AlertDescription></Alert> : null}
     <Card className="border-0 shadow-soft"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Your Microsoft Entra memberships</p><p className="mt-1 text-sm text-muted-foreground">{myGroups.data?.groups.length ? myGroups.data.groups.map(group => group.displayName).join(", ") : "No synchronized groups are available for this account yet."}</p></div><Button variant="outline" onClick={() => refreshMyGroups.mutate()} disabled={refreshMyGroups.isPending}>{refreshMyGroups.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UsersRound className="mr-2 h-4 w-4" />}Refresh Entra groups</Button></CardContent></Card>
+    <Card className="border-0 shadow-soft"><CardHeader className="flex-row items-start justify-between gap-4 border-b border-border/70"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#D58240]">Access requests</p><CardTitle className="mt-1">Pending review</CardTitle><p className="mt-1 text-sm text-muted-foreground">Approving a request grants direct access to the selected portal resource and records the decision.</p></div><Badge variant="outline" className="border-[#D58240]/30 bg-[#D58240]/5 text-[#9A5727]">{pendingRequests.length} pending</Badge></CardHeader><CardContent className="p-4">{pendingRequests.length ? <div className="space-y-3">{pendingRequests.map(request => { const requester = users.find(user => user.id === request.requesterUserId); const resource = resources.find(item => item.id === request.resourceId); return <div key={request.id} className="rounded-xl border border-border/80 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{requester?.name || requester?.email || `User ${request.requesterUserId}`} <span className="font-normal text-muted-foreground">requested</span> {resource?.label || "a restricted resource"}</p><p className="mt-1 text-xs text-muted-foreground">Submitted {new Date(request.createdAt).toLocaleString()}</p>{request.note ? <p className="mt-3 rounded-lg bg-muted/60 p-3 text-sm leading-6 text-muted-foreground">{request.note}</p> : null}</div><div className="flex gap-2"><Button size="sm" className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" disabled={reviewRequest.isPending} onClick={() => reviewRequest.mutate({ requestId: request.id, status: "approved" })}><CheckCircle2 className="mr-1.5 h-4 w-4" />Approve</Button><Button size="sm" variant="outline" disabled={reviewRequest.isPending} onClick={() => reviewRequest.mutate({ requestId: request.id, status: "declined" })}><X className="mr-1.5 h-4 w-4" />Decline</Button></div></div></div>; })}</div> : <div className="rounded-xl border border-dashed border-[#5A92C9]/25 bg-[#5A92C9]/5 p-5 text-center text-sm text-muted-foreground">There are no pending access requests.</div>}</CardContent></Card>
     <div className="grid gap-6 xl:grid-cols-[0.86fr_1.4fr]">
       <Card className="border-0 shadow-soft"><CardHeader><CardTitle>Portal resources</CardTitle></CardHeader><CardContent className="space-y-2">{overview.isLoading ? <p className="text-sm text-muted-foreground">Loading resources…</p> : resources.map(resource => <button key={resource.id} onClick={() => selectResource(resource.id)} className={`w-full rounded-xl border p-3 text-left transition-colors ${form.id === resource.id ? "border-[#5A92C9]/45 bg-[#5A92C9]/8" : "border-border hover:bg-muted/60"}`}><div className="flex items-center justify-between gap-3"><p className="font-semibold">{resource.label}</p><Badge variant="outline" className={resource.accessMode === "restricted" ? "border-[#D58240]/30 text-[#9A5727]" : "border-emerald-200 text-emerald-700"}>{resource.accessMode === "restricted" ? "Restricted" : "All users"}</Badge></div><p className="mt-1 truncate text-xs text-muted-foreground">{resource.path} · {resource.isSystem ? "module" : "custom page"}</p></button>)}</CardContent></Card>
       <Card className="border-0 shadow-soft"><CardHeader><CardTitle>{form.id ? `Edit ${selected?.label || "resource"}` : "Create custom page"}</CardTitle></CardHeader><CardContent className="space-y-5">

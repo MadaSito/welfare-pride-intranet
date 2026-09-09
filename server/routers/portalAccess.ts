@@ -24,6 +24,7 @@ const resourceInput = z.object({
   sortOrder: z.number().int().min(-10_000).max(10_000),
   assignments: z.array(assignmentInput).max(100),
 });
+const accessRequestInput = z.object({ resourceKey: z.string().trim().min(1).max(140), note: z.string().trim().max(500).optional() });
 
 function customPagePath(input: z.infer<typeof resourceInput>) {
   if (!input.slug) throw new TRPCError({ code: "BAD_REQUEST", message: "A page slug is required for custom pages." });
@@ -66,12 +67,25 @@ export const portalAccessRouter = router({
     return resource;
   }),
 
+  requestAccess: protectedProcedure.input(accessRequestInput).mutation(async ({ ctx, input }) => {
+    const resource = await db.getPortalResourceByKey(input.resourceKey);
+    if (!resource || !resource.isPublished || resource.accessMode !== "restricted") throw new TRPCError({ code: "BAD_REQUEST", message: "This page does not accept access requests." });
+    if (await db.canAccessPortalResource({ resourceKey: resource.resourceKey, userId: ctx.user.id, role: ctx.user.role })) throw new TRPCError({ code: "BAD_REQUEST", message: "You already have access to this page." });
+    const result = await db.createPortalAccessRequest({ resourceId: resource.id, requesterUserId: ctx.user.id, note: input.note });
+    return { created: result.created };
+  }),
+
   adminOverview: adminProcedure.query(async () => ({
     resources: await db.listPortalResources(true),
     groups: await db.listEntraGroups(),
     users: await db.listPortalUsersForAssignments(),
     auditEvents: await db.listAccessControlAuditEvents(100),
+    accessRequests: await db.listPortalAccessRequests(200),
   })),
+
+  reviewAccessRequest: adminProcedure.input(z.object({ requestId: z.number().int().positive(), status: z.enum(["approved", "declined"]) })).mutation(async ({ ctx, input }) => {
+    return db.reviewPortalAccessRequest({ requestId: input.requestId, reviewerUserId: ctx.user.id, status: input.status });
+  }),
 
   adminAssignments: adminProcedure.input(z.object({ resourceId: z.number().int().positive() })).query(async ({ input }) => {
     return db.getPortalResourceAssignments(input.resourceId);
