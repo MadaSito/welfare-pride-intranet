@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { sidebarLayout } from "@/lib/sidebarLayout";
 import { ArchiveRestore, BriefcaseBusiness, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LockKeyhole, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
@@ -231,13 +232,15 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="overflow-y-auto px-2 py-3 sm:px-3">
+        <SidebarContent className={sidebarLayout.content}>
           {portalNavigation.isLoading ? <div className="space-y-3 px-3 py-2"><div className="h-3 w-20 rounded bg-muted" /><div className="h-10 rounded-xl bg-muted/60" /><div className="h-10 rounded-xl bg-muted/60" /></div> : null}
           {navigationGroups.map(group => (
-            <SidebarGroup key={group.label} className="relative z-0 mb-4 space-y-1 p-0">
-              <p className="relative z-10 mx-1 rounded-lg bg-[#5A92C9]/9 px-3 py-2 text-[12px] font-extrabold uppercase leading-4 tracking-[0.16em] text-[#376F9F] shadow-sm ring-1 ring-[#5A92C9]/12 group-data-[collapsible=icon]:sr-only">{group.label}</p>
-              <SidebarGroupContent>
-                <SidebarMenu className="gap-1.5">
+            <SidebarGroup key={group.label} className={sidebarLayout.group}>
+              <div className={sidebarLayout.blueHeading}>
+                <p className={sidebarLayout.blueHeadingText}>{group.label}</p>
+              </div>
+              <SidebarGroupContent className={sidebarLayout.groupContent}>
+                <SidebarMenu className={sidebarLayout.menu}>
                   {group.items.map(item => {
                     const active = item.path === "/" ? location === "/" : location.startsWith(item.path);
                     return (
@@ -247,7 +250,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
                           onClick={() => setLocation(item.path)}
                           tooltip={item.restricted ? `${item.label} · Restricted access managed by user or Entra group policy` : item.label}
                           aria-label={item.restricted ? `${item.label}, restricted access managed by a user or Entra group policy` : item.label}
-                          className={cn("h-12 rounded-xl border px-3 text-[15px] font-semibold transition-colors", active ? "border-[#5A92C9]/22 bg-[#5A92C9]/12 text-[#265E8B] shadow-sm" : "border-transparent bg-white/70 text-foreground/85 hover:border-[#5A92C9]/12 hover:bg-[#5A92C9]/7 hover:text-[#265E8B]")}
+                          className={cn("h-11 rounded-lg border px-3 text-[15px] font-semibold transition-colors", active ? "border-[#5A92C9]/22 bg-[#5A92C9]/12 text-[#265E8B] shadow-sm" : "border-transparent bg-transparent text-foreground/85 hover:border-[#5A92C9]/12 hover:bg-[#5A92C9]/7 hover:text-[#265E8B]")}
                         >
                           <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#5A92C9]" : "text-muted-foreground")} />
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -262,15 +265,17 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           ))}
 
           {user?.role === "admin" ? (
-            <SidebarGroup className="relative z-0 mb-2 space-y-1 p-0">
-              <p className="relative z-10 mx-1 rounded-lg bg-[#D58240]/10 px-3 py-2 text-[12px] font-extrabold uppercase leading-4 tracking-[0.16em] text-[#9A5727] shadow-sm ring-1 ring-[#D58240]/15 group-data-[collapsible=icon]:sr-only">Administration</p>
-              <SidebarGroupContent>
-                <SidebarMenu className="gap-1.5">
+            <SidebarGroup className={sidebarLayout.adminGroup}>
+              <div className={sidebarLayout.orangeHeading}>
+                <p className={sidebarLayout.orangeHeadingText}>Administration</p>
+              </div>
+              <SidebarGroupContent className={sidebarLayout.groupContent}>
+                <SidebarMenu className={sidebarLayout.menu}>
                   {adminItems.map(item => {
                     const active = location.startsWith(item.path);
                     return (
                       <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-12 rounded-xl border px-3 text-[15px] font-semibold", active ? "border-[#D58240]/22 bg-[#D58240]/10 text-[#8A4D25] shadow-sm" : "border-transparent bg-white/70 text-foreground/85 hover:border-[#D58240]/12 hover:bg-[#D58240]/6 hover:text-[#8A4D25]") }>
+                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-11 rounded-lg border px-3 text-[15px] font-semibold", active ? "border-[#D58240]/22 bg-[#D58240]/10 text-[#8A4D25] shadow-sm" : "border-transparent bg-transparent text-foreground/85 hover:border-[#D58240]/12 hover:bg-[#D58240]/6 hover:text-[#8A4D25]") }>
                           <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#D58240]" : "text-muted-foreground")} />
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         </SidebarMenuButton>

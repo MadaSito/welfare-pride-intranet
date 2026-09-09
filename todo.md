@@ -126,3 +126,5 @@
 - [x] Add focused regression coverage for request-filter behavior and server-filtered navigation metadata used by the revised sidebar.
 - [x] Capture and document current desktop and mobile safe-fallback verification for the notification, request-management, and mobile-sidebar update, while noting authenticated walkthrough requirements.
 - [x] Capture and document a current tablet-width safe-fallback verification for the notification, request-management, and revised sidebar after the latest updates.
+- [x] Replace the overlapping sidebar category-pill treatment with a reserved-space professional heading layout that cannot cover navigation rows.
+- [x] Verify the corrected sidebar hierarchy, active states, lock indicators, and touch targets at desktop, tablet, and mobile widths.
