@@ -137,3 +137,7 @@
 - [x] Add seven-day Security Center analytics for top blocked IP addresses and most frequent security threat types, using live security-event data.
 - [x] Extend Security Center investigation filters with exact correlation ID, exact IP, event type, severity, date range, and bounded result controls.
 - [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for Security Center exports and analytics.
+- [x] Add an administrator-only Security Center event-detail modal that displays safe full event payload metadata and related events sharing its correlation ID.
+- [x] Add chart drill-through interactions that apply the selected IP address or threat type directly to the advanced audit-log filters.
+- [x] Add configurable high-severity alert thresholds, durable per-administrator Security Center alerts, read-state handling, and in-app notifications.
+- [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for Security Center investigations and alerts.

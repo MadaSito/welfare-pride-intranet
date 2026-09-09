@@ -3,6 +3,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { WelfarePrideAssistant } from "@/components/WelfarePrideAssistant";
 import { AccessRequestNotifications } from "@/components/AccessRequestNotifications";
+import { SecurityAlertNotifications } from "@/components/SecurityAlertNotifications";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -330,6 +331,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2">
             <GlobalSearch />
             {user?.role === "admin" ? <AccessRequestNotifications /> : null}
+            {user?.role === "admin" ? <SecurityAlertNotifications /> : null}
             <WelfarePrideAssistant isAdmin={user?.role === "admin"} />
             <Badge variant="outline" className="hidden border-[#5A92C9]/25 bg-[#5A92C9]/5 text-[#376F9F] sm:inline-flex"><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#5A92C9]" />Secure workspace</Badge>
           </div>

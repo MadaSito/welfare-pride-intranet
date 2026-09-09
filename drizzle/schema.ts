@@ -587,6 +587,9 @@ export const securitySettings = mysqlTable(
     rateLimitWindowSeconds: int("rateLimitWindowSeconds").default(60).notNull(),
     autoBlockThreshold: int("autoBlockThreshold").default(0).notNull(),
     autoBlockDurationMinutes: int("autoBlockDurationMinutes").default(30).notNull(),
+    alertingEnabled: boolean("alertingEnabled").default(true).notNull(),
+    highSeverityAlertThreshold: int("highSeverityAlertThreshold").default(3).notNull(),
+    highSeverityAlertWindowMinutes: int("highSeverityAlertWindowMinutes").default(15).notNull(),
     updatedByUserId: int("updatedByUserId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -659,6 +662,37 @@ export const securityEvents = mysqlTable(
   ],
 );
 
+export const securityAlertNotifications = mysqlTable(
+  "security_alert_notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    triggerEventId: int("triggerEventId").notNull(),
+    recipientUserId: int("recipientUserId").notNull(),
+    correlationId: varchar("correlationId", { length: 64 }).notNull(),
+    eventType: varchar("eventType", { length: 120 }).notNull(),
+    severity: mysqlEnum("severity", ["high", "critical"]).notNull(),
+    ipAddress: varchar("ipAddress", { length: 45 }),
+    matchedEventCount: int("matchedEventCount").notNull(),
+    windowMinutes: int("windowMinutes").notNull(),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.triggerEventId],
+      foreignColumns: [securityEvents.id],
+      name: "san_event_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.recipientUserId],
+      foreignColumns: [users.id],
+      name: "san_recipient_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("security_alert_notif_unique").on(table.triggerEventId, table.recipientUserId),
+    index("security_alert_notif_unread_idx").on(table.recipientUserId, table.readAt, table.createdAt),
+  ],
+);
+
 export const operationAuditEvents = mysqlTable(
   "operation_audit_events",
   {
@@ -700,3 +734,4 @@ export type OperationAuditEvent = typeof operationAuditEvents.$inferSelect;
 export type SecuritySettings = typeof securitySettings.$inferSelect;
 export type SecurityIpPolicy = typeof securityIpPolicies.$inferSelect;
 export type SecurityEvent = typeof securityEvents.$inferSelect;
+export type SecurityAlertNotification = typeof securityAlertNotifications.$inferSelect;

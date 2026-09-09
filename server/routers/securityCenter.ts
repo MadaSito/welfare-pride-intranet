@@ -13,6 +13,9 @@ const securitySettingsSchema = z.object({
   rateLimitWindowSeconds: z.number().int().min(10).max(3_600),
   autoBlockThreshold: z.number().int().min(0).max(100),
   autoBlockDurationMinutes: z.number().int().min(5).max(43_200),
+  alertingEnabled: z.boolean(),
+  highSeverityAlertThreshold: z.number().int().min(1).max(100),
+  highSeverityAlertWindowMinutes: z.number().int().min(1).max(1_440),
 });
 const ipAddress = z.string().trim().max(45).refine(value => normalizeClientIp(value) !== "unknown", "Enter a valid IPv4 or IPv6 address.");
 const securityEventFilterShape = {
@@ -70,6 +73,12 @@ export const securityCenterRouter = router({
 
   events: adminProcedure.input(eventQuerySchema).query(({ input }) => db.listSecurityEvents(input)),
 
+  eventDetail: adminProcedure.input(z.object({ eventId: z.number().int().positive() })).query(async ({ input }) => {
+    const detail = await db.getSecurityEventDetail(input.eventId);
+    if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Security event not found." });
+    return detail;
+  }),
+
   analytics: adminProcedure.query(() => db.getSecurityAnalytics()),
 
   exportEvents: adminProcedure.input(eventExportSchema).mutation(async ({ ctx, input }) => {
@@ -95,6 +104,16 @@ export const securityCenterRouter = router({
   }),
 
   threatEventTypes: adminProcedure.query(() => SECURITY_THREAT_EVENT_TYPES),
+
+  alertNotifications: adminProcedure.query(async ({ ctx }) => ({
+    unreadCount: await db.getUnreadSecurityAlertNotificationCount(ctx.user.id),
+    notifications: await db.listSecurityAlertNotifications(ctx.user.id),
+  })),
+
+  markAlertNotificationsRead: adminProcedure.mutation(async ({ ctx }) => {
+    await db.markSecurityAlertNotificationsRead(ctx.user.id);
+    return { success: true } as const;
+  }),
 
   saveSettings: adminProcedure.input(securitySettingsSchema).mutation(async ({ ctx, input }) => {
     const currentIpAddress = getTrustedClientIp(ctx.req);

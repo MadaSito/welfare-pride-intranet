@@ -61,6 +61,26 @@ The analytics cards use live security events from the preceding seven days. **To
 | Result limit | Keeps browser investigation views within 50, 100, 250, or 500 rows. |
 | CSV export | Exports up to 5,000 records matching the active filters and creates an audit event. |
 
+## Event investigation and chart drill-through
+
+Selecting an event type or correlation ID in the timeline opens the **Security event investigation** dialog. It displays the selected event’s timestamp, source address, actor when available, request target, correlation ID, and complete **captured security metadata**. The dialog also lists retained events with the same correlation ID, allowing an administrator to move among related records or apply the exact correlation ID to the timeline.
+
+> The event collector intentionally retains security metadata rather than request bodies or query-string values. The modal displays the full payload that was captured for that event; it does not expose uncollected credentials, form content, or request bodies.
+
+Both seven-day charts contain hover tooltips and are interactive. Selecting a bar in **Top blocked IP addresses** applies that exact source IP to the timeline. Selecting a bar in **Most frequent security threats** applies the corresponding event type. Each applied filter remains visible and can be cleared using **Clear filters**.
+
+## High-severity alerts
+
+Administrators can configure the **Security alert bell** in the Security Center. When enabled, the portal counts high and critical events in a rolling window. An in-app alert is created for every current administrator only when the configured count is crossed, preventing a sustained event stream from generating a separate bell alert for every additional request. Alerts include the triggering event ID and correlation ID, source IP when captured, count, window, severity, and event type. Opening the alert bell marks that recipient’s outstanding Security Center alerts as read; one administrator’s read state does not affect another’s.
+
+| Setting | Valid range | Purpose |
+|---|---:|---|
+| Security alert bell | Enabled or paused | Enables or pauses creation of new in-app threshold alerts. Existing alerts remain available. |
+| Threshold events | 1–100 | Number of high or critical events that must be seen before an alert is created. |
+| Rolling window | 1–1,440 minutes | Duration in which high and critical events are counted. |
+
+The Security Center alert bell is not a replacement for external 24/7 monitoring. It is an authenticated administrator notification within the portal. Maintain perimeter alerts and incident-response procedures separately for after-hours coverage.
+
 ## Scope and deployment guidance
 
 The Security Center is **not a substitute for a perimeter firewall, web application firewall, reverse proxy, operating-system patching, secure TLS configuration, Microsoft Entra conditional access, endpoint protection, backups, or incident response**. It is an application-layer control and cannot block packets before they reach the hosting provider or proxy.
@@ -72,7 +92,9 @@ For a Docker, VPS, Azure, or Hostinger deployment, set `TRUST_PROXY=true` only w
 1. Filter the Security Center timeline by a correlation ID, source IP, threat type, severity, or date range.
 2. Verify the source, path, timing, and related administrator events before acting.
 3. Use **Export CSV** to preserve the exact filtered event set for offline analysis; the Security Center records the export action.
-4. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
-5. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
-6. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
-7. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.
+4. Select a chart bar to inspect its exact IP or threat-type event set, then open an event to review captured metadata and related correlation records.
+5. Configure a modest high-severity threshold and rolling window appropriate to the organization’s normal event volume; test the administrator alert bell in a controlled environment.
+6. Add a labelled temporary block policy for a confirmed abusive address, or use an allow policy for a trusted administrative egress address.
+7. If allowlist-only mode is required, first confirm the current administrative source appears in the active allow-policy list.
+8. Use the confirmed **Unblock** or **Remove allow** action only after reviewing the event timeline and any perimeter controls.
+9. Preserve relevant correlation IDs in the organization’s incident record and investigate repeated high-severity activity at the reverse-proxy, operating-system, and identity layers.

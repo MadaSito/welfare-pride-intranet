@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -34,9 +34,11 @@ import {
   securityEvents,
   securityIpPolicies,
   securitySettings,
+  securityAlertNotifications,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 import { buildSecurityAnalytics } from "./security/securityAnalytics";
+import { shouldTriggerHighSeverityAlert } from "./security/securityAlerts";
 import { BUILT_IN_PORTAL_RESOURCES, type PortalAssignmentSubjectType, type PortalResourceAccessMode } from "../shared/portalAccess";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1452,6 +1454,9 @@ export const DEFAULT_SECURITY_SETTINGS = {
   rateLimitWindowSeconds: 60,
   autoBlockThreshold: 0,
   autoBlockDurationMinutes: 30,
+  alertingEnabled: true,
+  highSeverityAlertThreshold: 3,
+  highSeverityAlertWindowMinutes: 15,
 } as const;
 
 export type SecuritySettingsInput = {
@@ -1460,6 +1465,9 @@ export type SecuritySettingsInput = {
   rateLimitWindowSeconds: number;
   autoBlockThreshold: number;
   autoBlockDurationMinutes: number;
+  alertingEnabled: boolean;
+  highSeverityAlertThreshold: number;
+  highSeverityAlertWindowMinutes: number;
 };
 
 export async function getSecuritySettings() {
@@ -1527,11 +1535,41 @@ export async function revokeSecurityIpPolicy(input: { policyId: number; revokedB
   return (await db.select().from(securityIpPolicies).where(eq(securityIpPolicies.id, input.policyId)).limit(1))[0];
 }
 
+async function maybeCreateSecurityAlertNotifications(input: { eventId: number; event: typeof securityEvents.$inferInsert }) {
+  const alertSeverity = input.event.severity;
+  if (alertSeverity !== "high" && alertSeverity !== "critical") return;
+  const db = await getDb();
+  if (!db) return;
+  const settings = await getSecuritySettings();
+  if (!settings.alertingEnabled || settings.highSeverityAlertThreshold < 1) return;
+  const windowStart = new Date(Date.now() - settings.highSeverityAlertWindowMinutes * 60_000);
+  const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(securityEvents).where(and(
+    inArray(securityEvents.severity, ["high", "critical"]),
+    gte(securityEvents.createdAt, windowStart),
+  ));
+  const matchedEventCount = Number(countResult?.count || 0);
+  if (!shouldTriggerHighSeverityAlert({ alertingEnabled: settings.alertingEnabled, threshold: settings.highSeverityAlertThreshold, matchedEventCount })) return;
+  const recipients = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+  if (!recipients.length) return;
+  await db.insert(securityAlertNotifications).values(recipients.map(recipient => ({
+    triggerEventId: input.eventId,
+    recipientUserId: recipient.id,
+    correlationId: input.event.correlationId,
+    eventType: input.event.eventType,
+    severity: alertSeverity,
+    ipAddress: input.event.ipAddress ?? null,
+    matchedEventCount,
+    windowMinutes: settings.highSeverityAlertWindowMinutes,
+  }))).onDuplicateKeyUpdate({ set: { triggerEventId: input.eventId } });
+}
+
 export async function appendSecurityEvent(input: typeof securityEvents.$inferInsert) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.insert(securityEvents).values(input);
-  return Number(result[0].insertId);
+  const eventId = Number(result[0].insertId);
+  void maybeCreateSecurityAlertNotifications({ eventId, event: input }).catch(error => console.error("[Security Center] Unable to create alert notifications", error));
+  return eventId;
 }
 
 export type SecurityEventFilters = {
@@ -1570,6 +1608,47 @@ export async function listSecurityEvents(filters: SecurityEventFilters = {}) {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(securityEvents.createdAt), desc(securityEvents.id))
     .limit(Math.min(Math.max(filters.limit ?? 200, 1), 5_000));
+}
+
+export async function getSecurityEventDetail(eventId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [selected] = await db.select({ event: securityEvents, actorName: users.name, actorEmail: users.email })
+    .from(securityEvents)
+    .leftJoin(users, eq(securityEvents.actorUserId, users.id))
+    .where(eq(securityEvents.id, eventId))
+    .limit(1);
+  if (!selected) return undefined;
+  const related = await listSecurityEvents({ correlationId: selected.event.correlationId, limit: 100 });
+  return { selected, related };
+}
+
+export async function listSecurityAlertNotifications(recipientUserId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(securityAlertNotifications)
+    .where(eq(securityAlertNotifications.recipientUserId, recipientUserId))
+    .orderBy(desc(securityAlertNotifications.createdAt), desc(securityAlertNotifications.id))
+    .limit(Math.min(Math.max(limit, 1), 50));
+}
+
+export async function getUnreadSecurityAlertNotificationCount(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const [result] = await db.select({ count: sql<number>`count(*)` }).from(securityAlertNotifications).where(and(
+    eq(securityAlertNotifications.recipientUserId, recipientUserId),
+    isNull(securityAlertNotifications.readAt),
+  ));
+  return Number(result?.count || 0);
+}
+
+export async function markSecurityAlertNotificationsRead(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(securityAlertNotifications).set({ readAt: new Date() }).where(and(
+    eq(securityAlertNotifications.recipientUserId, recipientUserId),
+    isNull(securityAlertNotifications.readAt),
+  ));
 }
 
 export async function getSecurityAnalytics(now = new Date()) {

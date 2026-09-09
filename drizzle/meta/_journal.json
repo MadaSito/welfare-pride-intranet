@@ -120,6 +120,13 @@
       "when": 1788937898296,
       "tag": "0016_steep_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1788970305377,
+      "tag": "0017_ordinary_nighthawk",
+      "breakpoints": true
     }
   ]
 }
