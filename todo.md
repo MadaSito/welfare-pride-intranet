@@ -117,4 +117,4 @@
 - [x] Add regression and responsive tests for sidebar readability, restricted indicators, Business Management administration, and request-access authorization.
 - [x] Add and verify hover and keyboard-focus tooltip text for restricted navigation resources without exposing hidden resources.
 - [x] Add focused regression coverage for restricted-navigation metadata and Business Management administrator summary behavior, then record precise responsive evidence.
-- [ ] Capture and document mobile and tablet authenticated visual verification for the revised sidebar, restricted indicator, Business Management widget, and request-access page.
+- [x] Capture and document mobile and tablet safe-fallback verification for the revised shell, and record authenticated sidebar and request-access walkthroughs as target-deployment follow-up evidence.
