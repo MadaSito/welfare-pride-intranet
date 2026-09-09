@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { BrandLogo } from "@/components/BrandLogo";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { WelfarePrideAssistant } from "@/components/WelfarePrideAssistant";
+import { AccessRequestNotifications } from "@/components/AccessRequestNotifications";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -186,7 +187,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (authState && authState !== "full") return <LocalSecurityCompletion authState={authState} />;
 
   return (
-    <SidebarProvider style={{ "--sidebar-width": "20.5rem", "--sidebar-width-icon": "4.75rem" } as CSSProperties}>
+    <SidebarProvider style={{ "--sidebar-width": "min(20.5rem, calc(100vw - 1rem))", "--sidebar-width-icon": "4.75rem" } as CSSProperties}>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
     </SidebarProvider>
   );
@@ -213,7 +214,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-white">
-        <SidebarHeader className="border-b border-sidebar-border px-3 py-4">
+        <SidebarHeader className="border-b border-sidebar-border px-3 py-3">
           <div className="flex h-12 items-center justify-between gap-2">
             <button
               onClick={() => setLocation("/")}
@@ -230,13 +231,13 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="overflow-y-auto px-3 py-4">
+        <SidebarContent className="overflow-y-auto px-2 py-3 sm:px-3">
           {portalNavigation.isLoading ? <div className="space-y-3 px-3 py-2"><div className="h-3 w-20 rounded bg-muted" /><div className="h-10 rounded-xl bg-muted/60" /><div className="h-10 rounded-xl bg-muted/60" /></div> : null}
           {navigationGroups.map(group => (
-            <SidebarGroup key={group.label} className="mb-3 p-0">
-              <p className="px-3 pb-2 pt-3 text-[11px] font-extrabold uppercase leading-none tracking-[0.18em] text-[#5A92C9]/80 group-data-[collapsible=icon]:sr-only">{group.label}</p>
+            <SidebarGroup key={group.label} className="relative z-0 mb-4 space-y-1 p-0">
+              <p className="relative z-10 mx-1 rounded-lg bg-[#5A92C9]/9 px-3 py-2 text-[12px] font-extrabold uppercase leading-4 tracking-[0.16em] text-[#376F9F] shadow-sm ring-1 ring-[#5A92C9]/12 group-data-[collapsible=icon]:sr-only">{group.label}</p>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-1">
+                <SidebarMenu className="gap-1.5">
                   {group.items.map(item => {
                     const active = item.path === "/" ? location === "/" : location.startsWith(item.path);
                     return (
@@ -246,7 +247,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
                           onClick={() => setLocation(item.path)}
                           tooltip={item.restricted ? `${item.label} · Restricted access managed by user or Entra group policy` : item.label}
                           aria-label={item.restricted ? `${item.label}, restricted access managed by a user or Entra group policy` : item.label}
-                          className={cn("h-12 rounded-xl px-3 text-[15px] font-semibold transition-colors", active ? "bg-[#5A92C9]/14 text-[#265E8B] shadow-sm" : "text-foreground/85 hover:bg-[#5A92C9]/7 hover:text-[#265E8B]")}
+                          className={cn("h-12 rounded-xl border px-3 text-[15px] font-semibold transition-colors", active ? "border-[#5A92C9]/22 bg-[#5A92C9]/12 text-[#265E8B] shadow-sm" : "border-transparent bg-white/70 text-foreground/85 hover:border-[#5A92C9]/12 hover:bg-[#5A92C9]/7 hover:text-[#265E8B]")}
                         >
                           <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#5A92C9]" : "text-muted-foreground")} />
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -261,15 +262,15 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           ))}
 
           {user?.role === "admin" ? (
-            <SidebarGroup className="mb-2 p-0">
-              <p className="px-3 pb-2 pt-3 text-[11px] font-extrabold uppercase leading-none tracking-[0.18em] text-[#D58240] group-data-[collapsible=icon]:sr-only">Administration</p>
+            <SidebarGroup className="relative z-0 mb-2 space-y-1 p-0">
+              <p className="relative z-10 mx-1 rounded-lg bg-[#D58240]/10 px-3 py-2 text-[12px] font-extrabold uppercase leading-4 tracking-[0.16em] text-[#9A5727] shadow-sm ring-1 ring-[#D58240]/15 group-data-[collapsible=icon]:sr-only">Administration</p>
               <SidebarGroupContent>
-                <SidebarMenu className="gap-1">
+                <SidebarMenu className="gap-1.5">
                   {adminItems.map(item => {
                     const active = location.startsWith(item.path);
                     return (
                       <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-12 rounded-xl px-3 text-[15px] font-semibold", active ? "bg-[#D58240]/12 text-[#8A4D25] shadow-sm" : "text-foreground/85 hover:bg-[#D58240]/6 hover:text-[#8A4D25]") }>
+                        <SidebarMenuButton isActive={active} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-12 rounded-xl border px-3 text-[15px] font-semibold", active ? "border-[#D58240]/22 bg-[#D58240]/10 text-[#8A4D25] shadow-sm" : "border-transparent bg-white/70 text-foreground/85 hover:border-[#D58240]/12 hover:bg-[#D58240]/6 hover:text-[#8A4D25]") }>
                           <item.icon className={cn("h-[19px] w-[19px]", active ? "text-[#D58240]" : "text-muted-foreground")} />
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
                         </SidebarMenuButton>
@@ -322,6 +323,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <GlobalSearch />
+            {user?.role === "admin" ? <AccessRequestNotifications /> : null}
             <WelfarePrideAssistant isAdmin={user?.role === "admin"} />
             <Badge variant="outline" className="hidden border-[#5A92C9]/25 bg-[#5A92C9]/5 text-[#376F9F] sm:inline-flex"><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#5A92C9]" />Secure workspace</Badge>
           </div>

@@ -29,6 +29,7 @@ import {
   portalResources,
   portalResourceAssignments,
   portalAccessRequests,
+  adminAccessRequestNotifications,
   accessControlAuditEvents,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
@@ -1194,6 +1195,12 @@ export async function createPortalAccessRequest(input: { resourceId: number; req
   const result = await db.insert(portalAccessRequests).values({ resourceId: input.resourceId, requesterUserId: input.requesterUserId, note: input.note?.trim() || null });
   const request = (await db.select().from(portalAccessRequests).where(eq(portalAccessRequests.id, Number(result[0].insertId))).limit(1))[0];
   if (!request) throw new Error("Access request could not be created");
+  const administrators = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+  if (administrators.length) {
+    await db.insert(adminAccessRequestNotifications).values(administrators.map(administrator => ({ accessRequestId: request.id, recipientUserId: administrator.id }))).onDuplicateKeyUpdate({
+      set: { accessRequestId: sql`${adminAccessRequestNotifications.accessRequestId}` },
+    });
+  }
   await appendAccessControlAuditEvent({ action: "portal_access_requested", resourceId: input.resourceId, actorUserId: input.requesterUserId, metadataJson: JSON.stringify({ requestId: request.id }) });
   return { request, created: true };
 }
@@ -1202,6 +1209,45 @@ export async function listPortalAccessRequests(limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(portalAccessRequests).orderBy(desc(portalAccessRequests.createdAt)).limit(Math.min(Math.max(limit, 1), 200));
+}
+
+export async function listAdminAccessRequestNotifications(recipientUserId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: adminAccessRequestNotifications.id,
+    accessRequestId: adminAccessRequestNotifications.accessRequestId,
+    readAt: adminAccessRequestNotifications.readAt,
+    createdAt: adminAccessRequestNotifications.createdAt,
+    resourceLabel: portalResources.label,
+    requesterName: users.name,
+    requesterEmail: users.email,
+  }).from(adminAccessRequestNotifications)
+    .innerJoin(portalAccessRequests, eq(adminAccessRequestNotifications.accessRequestId, portalAccessRequests.id))
+    .innerJoin(portalResources, eq(portalAccessRequests.resourceId, portalResources.id))
+    .innerJoin(users, eq(portalAccessRequests.requesterUserId, users.id))
+    .where(eq(adminAccessRequestNotifications.recipientUserId, recipientUserId))
+    .orderBy(desc(adminAccessRequestNotifications.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 50));
+}
+
+export async function getUnreadAdminAccessRequestNotificationCount(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const [result] = await db.select({ count: sql<number>`count(*)` }).from(adminAccessRequestNotifications).where(and(
+    eq(adminAccessRequestNotifications.recipientUserId, recipientUserId),
+    isNull(adminAccessRequestNotifications.readAt),
+  ));
+  return Number(result?.count || 0);
+}
+
+export async function markAdminAccessRequestNotificationsRead(recipientUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(adminAccessRequestNotifications).set({ readAt: new Date() }).where(and(
+    eq(adminAccessRequestNotifications.recipientUserId, recipientUserId),
+    isNull(adminAccessRequestNotifications.readAt),
+  ));
 }
 
 export async function reviewPortalAccessRequest(input: { requestId: number; reviewerUserId: number; status: "approved" | "declined" }) {

@@ -118,3 +118,11 @@
 - [x] Add and verify hover and keyboard-focus tooltip text for restricted navigation resources without exposing hidden resources.
 - [x] Add focused regression coverage for restricted-navigation metadata and Business Management administrator summary behavior, then record precise responsive evidence.
 - [x] Capture and document mobile and tablet safe-fallback verification for the revised shell, and record authenticated sidebar and request-access walkthroughs as target-deployment follow-up evidence.
+- [x] Add an in-app header notification bell for administrators with unread access-request alerts and safe read-state tracking.
+- [x] Add searchable and status-filterable access-request management controls for administrators, including pending and resolved requests.
+- [x] Refine the mobile sidebar to prevent any category or row collisions, enlarge and brighten category labels, and use lighter active navigation states.
+- [x] Optimize the Business Management dashboard widget and request-management controls for mobile layout, touch targets, and reduced-motion behavior.
+- [x] Add notification, request-filter, and mobile sidebar regression coverage; validate desktop, tablet, and mobile interfaces.
+- [x] Add focused regression coverage for request-filter behavior and server-filtered navigation metadata used by the revised sidebar.
+- [x] Capture and document current desktop and mobile safe-fallback verification for the notification, request-management, and mobile-sidebar update, while noting authenticated walkthrough requirements.
+- [x] Capture and document a current tablet-width safe-fallback verification for the notification, request-management, and revised sidebar after the latest updates.

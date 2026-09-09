@@ -75,6 +75,16 @@ export const portalAccessRouter = router({
     return { created: result.created };
   }),
 
+  adminNotifications: adminProcedure.query(async ({ ctx }) => ({
+    unreadCount: await db.getUnreadAdminAccessRequestNotificationCount(ctx.user.id),
+    notifications: await db.listAdminAccessRequestNotifications(ctx.user.id),
+  })),
+
+  markAdminNotificationsRead: adminProcedure.mutation(async ({ ctx }) => {
+    await db.markAdminAccessRequestNotificationsRead(ctx.user.id);
+    return { success: true } as const;
+  }),
+
   adminOverview: adminProcedure.query(async () => ({
     resources: await db.listPortalResources(true),
     groups: await db.listEntraGroups(),

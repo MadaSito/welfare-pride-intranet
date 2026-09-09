@@ -63,6 +63,7 @@ Database schema changes must be generated with `pnpm db:generate`, reviewed in `
 | [`docs/backup-audit-and-recovery.md`](docs/backup-audit-and-recovery.md) | Backup and restore controls |
 | [`docs/access-control-administration.md`](docs/access-control-administration.md) | Restricted pages, Business Management access, Entra group mappings, and local-user fallback |
 | [`docs/navigation-and-access-requests.md`](docs/navigation-and-access-requests.md) | Sidebar hierarchy, restricted-resource indicators, Business Management dashboard summary, and request review workflow |
+| [`docs/access-request-notifications.md`](docs/access-request-notifications.md) | Administrator notification bell, request search and filters, and mobile navigation guidance |
 | [`docs/security-review-2026-09-08.md`](docs/security-review-2026-09-08.md) | Defensive review findings, verified remediation, residual risks, and operator actions |
 | [`project-context/`](project-context/) | Git-backed architecture and reconstruction context |
 | [`session-worklogs/`](session-worklogs/) | Git-backed sanitized implementation and release worklogs |

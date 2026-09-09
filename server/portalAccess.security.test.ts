@@ -12,6 +12,9 @@ const dbMock = {
   listPortalUsersForAssignments: vi.fn(),
   listAccessControlAuditEvents: vi.fn(),
   listPortalAccessRequests: vi.fn(),
+  getUnreadAdminAccessRequestNotificationCount: vi.fn(),
+  listAdminAccessRequestNotifications: vi.fn(),
+  markAdminAccessRequestNotificationsRead: vi.fn(),
   getPortalResourceAssignments: vi.fn(),
   upsertEntraGroup: vi.fn(),
   savePortalResource: vi.fn(),
@@ -60,6 +63,15 @@ describe("portal access controls", () => {
     expect(overview.resources[0]?.resourceKey).toBe("module:business-management");
     expect(overview.accessRequests).toHaveLength(1);
     expect(overview.groups[0]?.groupId).toBe("group-1");
+  });
+
+  it("limits access-request notifications and read-state changes to the authenticated administrator recipient", async () => {
+    dbMock.getUnreadAdminAccessRequestNotificationCount.mockResolvedValue(1);
+    dbMock.listAdminAccessRequestNotifications.mockResolvedValue([{ id: 9, accessRequestId: 3, resourceLabel: "Business Management" }]);
+    await expect(portalAccessRouter.createCaller(context()).adminNotifications()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(portalAccessRouter.createCaller(context("admin")).adminNotifications()).resolves.toEqual({ unreadCount: 1, notifications: [{ id: 9, accessRequestId: 3, resourceLabel: "Business Management" }] });
+    await portalAccessRouter.createCaller(context("admin")).markAdminNotificationsRead();
+    expect(dbMock.markAdminAccessRequestNotificationsRead).toHaveBeenCalledWith(7);
   });
 
   it("blocks the Business Management API when the caller lacks its resource assignment", async () => {

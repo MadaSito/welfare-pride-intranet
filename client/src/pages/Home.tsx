@@ -2,10 +2,12 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, BookmarkCheck, BriefcaseBusiness, CalendarClock, CalendarDays, CloudCog, ExternalLink, FileText, Link2, Loader2, LockKeyhole, Megaphone, Network, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
+import { ArrowRight, BookmarkCheck, BriefcaseBusiness, CalendarClock, CalendarDays, CloudCog, ExternalLink, FileText, Link2, Loader2, LockKeyhole, Megaphone, Network, Search, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { useMemo, useState } from "react";
 
 const modules = [
   { title: "Employee Directory", description: "Find colleagues and view approved profile details.", icon: Users, path: "/people", accent: "blue" },
@@ -32,6 +34,8 @@ export default function Home() {
     { enabled: user?.role === "admin" && Boolean(businessResource?.id) },
   );
   const utils = trpc.useUtils();
+  const [businessRequestSearch, setBusinessRequestSearch] = useState("");
+  const [businessRequestFilter, setBusinessRequestFilter] = useState<"pending" | "resolved">("pending");
   const removePin = trpc.dashboardPins.remove.useMutation({
     onSuccess: async () => {
       await utils.dashboardPins.list.invalidate();
@@ -43,6 +47,16 @@ export default function Home() {
   const today = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
   const businessUsers = (businessAssignments.data || []).filter(item => item.userId).map(item => accessOverview.data?.users.find(userItem => userItem.id === item.userId)).filter(Boolean);
   const businessGroups = (businessAssignments.data || []).filter(item => item.entraGroupId).map(item => accessOverview.data?.groups.find(group => group.groupId === item.entraGroupId)).filter(Boolean);
+  const businessRequests = useMemo(() => {
+    const query = businessRequestSearch.trim().toLocaleLowerCase();
+    return (accessOverview.data?.accessRequests || []).filter(request => {
+      if (request.resourceId !== businessResource?.id) return false;
+      if (businessRequestFilter === "pending" ? request.status !== "pending" : request.status === "pending") return false;
+      if (!query) return true;
+      const requester = accessOverview.data?.users.find(userItem => userItem.id === request.requesterUserId);
+      return [requester?.name, requester?.email, request.note].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(query));
+    });
+  }, [accessOverview.data?.accessRequests, accessOverview.data?.users, businessRequestFilter, businessRequestSearch, businessResource?.id]);
   const visibleModulePaths = new Set((portalNavigation.data?.resources || []).map(resource => resource.path));
   const visibleWorkspaceModules = modules.filter(module => visibleModulePaths.has(module.path));
 
@@ -86,6 +100,7 @@ export default function Home() {
               <div className="rounded-2xl border border-[#D58240]/22 bg-[#D58240]/5 p-4"><div className="flex items-center gap-2"><LockKeyhole className="h-4 w-4 text-[#D58240]" /><p className="font-semibold">{businessResource.accessMode === "restricted" ? "Restricted audience" : "All authenticated employees"}</p></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{businessResource.accessMode === "restricted" ? "Access is granted only by named user or synchronized Entra group membership." : "Every signed-in employee can open this section."}</p><div className="mt-4 flex flex-wrap gap-2"><Badge variant="outline" className="border-[#5A92C9]/25 bg-white text-[#376F9F]">{businessUsers.length} named user{businessUsers.length === 1 ? "" : "s"}</Badge><Badge variant="outline" className="border-[#D58240]/25 bg-white text-[#9A5727]">{businessGroups.length} Entra group{businessGroups.length === 1 ? "" : "s"}</Badge></div></div>
               <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-border/80 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5A92C9]">Named users</p>{businessUsers.length ? <ul className="mt-3 space-y-2">{businessUsers.slice(0, 4).map(userItem => <li key={userItem!.id} className="truncate text-sm font-semibold">{userItem!.name || userItem!.email || `User ${userItem!.id}`}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">No direct user assignments.</p>}</div><div className="rounded-2xl border border-border/80 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#D58240]">Entra groups</p>{businessGroups.length ? <ul className="mt-3 space-y-2">{businessGroups.slice(0, 4).map(group => <li key={group!.groupId} className="truncate text-sm font-semibold">{group!.displayName}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">No group assignments.</p>}</div></div>
             </div> : null}
+            {businessResource && !accessOverview.isLoading ? <div className="mt-4 rounded-2xl border border-[#5A92C9]/18 bg-[#5A92C9]/[0.035] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5A92C9]">Business Management requests</p><p className="mt-1 text-sm text-muted-foreground">Search pending or resolved employee access requests.</p></div><div className="flex rounded-xl bg-white p-1 ring-1 ring-[#5A92C9]/15"><Button size="sm" variant={businessRequestFilter === "pending" ? "default" : "ghost"} className={businessRequestFilter === "pending" ? "bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" : "text-muted-foreground"} onClick={() => setBusinessRequestFilter("pending")}>Pending</Button><Button size="sm" variant={businessRequestFilter === "resolved" ? "default" : "ghost"} className={businessRequestFilter === "resolved" ? "bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" : "text-muted-foreground"} onClick={() => setBusinessRequestFilter("resolved")}>Resolved</Button></div></div><div className="relative mt-3"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="h-10 bg-white pl-9" value={businessRequestSearch} onChange={event => setBusinessRequestSearch(event.target.value)} placeholder="Search employee or request note" aria-label="Search Business Management access requests" /></div><div className="mt-3 space-y-2">{businessRequests.slice(0, 3).map(request => { const requester = accessOverview.data?.users.find(userItem => userItem.id === request.requesterUserId); return <div key={request.id} className="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-border/70 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="truncate text-sm font-semibold">{requester?.name || requester?.email || `User ${request.requesterUserId}`}</p><p className="mt-0.5 text-xs text-muted-foreground">{request.status} · {new Date(request.createdAt).toLocaleDateString()}</p></div><Badge variant="outline" className={request.status === "pending" ? "self-start border-[#D58240]/30 bg-[#D58240]/5 text-[#9A5727] sm:self-auto" : "self-start border-emerald-200 bg-emerald-50 text-emerald-700 sm:self-auto"}>{request.status}</Badge></div>; })}{!businessRequests.length ? <p className="rounded-xl bg-white p-4 text-center text-sm text-muted-foreground">No {businessRequestFilter} Business Management requests match this search.</p> : null}</div><Button variant="link" className="mt-2 px-0 text-[#376F9F]" onClick={() => setLocation("/admin/access-pages?requests=all")}>Open full request manager <ArrowRight className="ml-1.5 h-4 w-4" /></Button></div> : null}
           </CardContent>
         </Card>
       </section> : null}

@@ -229,6 +229,31 @@ export const portalAccessRequests = mysqlTable(
   ],
 );
 
+export const adminAccessRequestNotifications = mysqlTable(
+  "admin_access_request_notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    accessRequestId: int("accessRequestId").notNull(),
+    recipientUserId: int("recipientUserId").notNull(),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({
+      columns: [table.accessRequestId],
+      foreignColumns: [portalAccessRequests.id],
+      name: "aarn_request_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.recipientUserId],
+      foreignColumns: [users.id],
+      name: "aarn_recipient_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("admin_request_notifications_unique").on(table.accessRequestId, table.recipientUserId),
+    index("admin_request_notifications_unread_idx").on(table.recipientUserId, table.readAt, table.createdAt),
+  ],
+);
+
 export const accessControlAuditEvents = mysqlTable(
   "access_control_audit_events",
   {
@@ -574,6 +599,7 @@ export type InsertEmployeeProfile = typeof employeeProfiles.$inferInsert;
 export type EntraGroup = typeof entraGroups.$inferSelect;
 export type PortalResource = typeof portalResources.$inferSelect;
 export type PortalResourceAssignment = typeof portalResourceAssignments.$inferSelect;
+export type AdminAccessRequestNotification = typeof adminAccessRequestNotifications.$inferSelect;
 export type MicrosoftOauthSession = typeof microsoftOauthSessions.$inferSelect;
 export type Announcement = typeof announcements.$inferSelect;
 export type CompanyEvent = typeof companyEvents.$inferSelect;
