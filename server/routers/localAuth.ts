@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import * as db from "../db";
@@ -153,6 +153,14 @@ export const localAuthRouter = router({
       return { success: true } as const;
     }),
   listLocalMfaPolicies: adminProcedure.query(async () => db.listLocalMfaPolicies()),
+  createManagedLocalUser: adminProcedure.input(z.object({ name: z.string().trim().min(2).max(120), email: z.string().trim().email().max(320), password: z.string().min(12).max(128), role: z.enum(["user", "admin"]), mfaRequired: z.boolean() })).mutation(async ({ input }) => {
+    const passwordError = validateStrongPassword(input.password);
+    if (passwordError) throw new TRPCError({ code: "BAD_REQUEST", message: passwordError });
+    const email = normalizeLogin(input.email);
+    const password = await hashPassword(input.password);
+    try { const user = await db.createManagedLocalUser({ openId: `local:${createHash("sha256").update(email).digest("hex").slice(0, 40)}`, name: input.name, email, role: input.role, ...password, mfaRequired: input.mfaRequired }); return { id: user.id, email: user.email, mustChangePassword: true, mfaRequired: input.mfaRequired } as const; }
+    catch (error) { throw new TRPCError({ code: "CONFLICT", message: error instanceof Error ? error.message : "Local account could not be created." }); }
+  }),
   logout: publicProcedure.mutation(async ({ ctx }) => {
     await revokeRequestSession(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });

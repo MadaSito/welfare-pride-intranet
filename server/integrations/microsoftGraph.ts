@@ -66,6 +66,23 @@ export async function getMicrosoftApplicationToken() {
   return { accessToken: body.access_token, publicConfig };
 }
 
+export async function discoverSharePointSite(siteUrl: string) {
+  const parsed = new URL(siteUrl);
+  if (parsed.protocol !== "https:" || !/\.sharepoint\.com$/i.test(parsed.hostname) || !parsed.pathname.startsWith("/sites/")) throw new Error("Use an HTTPS SharePoint site URL in the form https://tenant.sharepoint.com/sites/SiteName.");
+  const { accessToken, publicConfig } = await getMicrosoftApplicationToken();
+  const base = (publicConfig.graphBaseUrl || "https://graph.microsoft.com/v1.0").replace(/\/$/, "");
+  const siteResponse = await fetch(`${base}/sites/${encodeURIComponent(parsed.hostname)}:${parsed.pathname}`, { headers: { authorization: `Bearer ${accessToken}` } });
+  if (!siteResponse.ok) throw new Error(siteResponse.status === 403 ? "Microsoft Graph cannot read this SharePoint site. Grant Sites.Read.All application permission and administrator consent." : `SharePoint site lookup failed with status ${siteResponse.status}.`);
+  const site = await siteResponse.json() as { id?: string; displayName?: string; webUrl?: string };
+  if (!site.id) throw new Error("Microsoft Graph did not return a SharePoint site ID.");
+  const drivesResponse = await fetch(`${base}/sites/${encodeURIComponent(site.id)}/drives?$select=id,name,webUrl,driveType`, { headers: { authorization: `Bearer ${accessToken}` } });
+  if (!drivesResponse.ok) throw new Error(`SharePoint document-library lookup failed with status ${drivesResponse.status}.`);
+  const drives = ((await drivesResponse.json()) as { value?: Array<{ id?: string; name?: string; webUrl?: string; driveType?: string }> }).value || [];
+  const libraries = drives.filter(drive => drive.id && (drive.driveType === "documentLibrary" || !drive.driveType)).map(drive => ({ id: drive.id!, name: drive.name || "Document library", webUrl: drive.webUrl || null }));
+  const preferred = libraries.find(library => /human\s*resources|\bhr\b/i.test(library.name)) || (libraries.length === 1 ? libraries[0] : undefined);
+  return { siteId: site.id, siteUrl: site.webUrl || siteUrl, siteName: site.displayName || parsed.pathname.split("/").filter(Boolean).pop() || "SharePoint site", libraries, recommendedLibraryId: preferred?.id || null };
+}
+
 export async function getDelegatedMicrosoftAccessToken(userId: number) {
   const session = await db.getMicrosoftOauthSession(userId);
   if (!session) throw new Error("Sign in with Microsoft Entra ID to access SharePoint documents");

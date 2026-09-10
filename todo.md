@@ -145,3 +145,8 @@
 - [x] Add administrator-managed escalation-owner assignments for high-severity Security Center alerts with durable assignment audit history.
 - [x] Add a controlled critical-alert acknowledgement and incident-case tracking workflow with case reference, status, assignee, timestamps, and audit events.
 - [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for security-event badges, escalation ownership, and critical incident cases.
+- [ ] Add guided Microsoft Graph configuration with secure credential storage, connection validation, and SharePoint site-address discovery that fills site and document-library identifiers.
+- [ ] Add full administrator user lifecycle management for local accounts, role/status changes, MFA enforcement/reset, and safe local-to-Microsoft Entra or SSO transition preparation.
+- [ ] Add administrator controls to reorder navigation and custom portal sections with server-enforced validation and durable ordering.
+- [ ] Refresh the standalone VPS, Docker, Azure VM, and Azure Container deployment runbooks and produce reviewed Markdown and PDF versions for each target.
+- [ ] Add migration and regression coverage, isolated acceptance, and operator documentation for the Graph setup, user lifecycle, and section-ordering workflows.

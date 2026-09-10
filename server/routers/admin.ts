@@ -6,6 +6,7 @@ import { configuredSecretMask, decryptJson, encryptJson } from "../security/encr
 import { executeBackupRun, executeRestoreVerification, testBackupDestination } from "../integrations/backupAdapters";
 import { testMicrosoftGraphConnection, testSharePointRestConnection } from "../integrations/diagnostics";
 import { testAiProviderConnection, validateAiBaseUrl } from "../integrations/aiProvider";
+import { discoverSharePointSite } from "../integrations/microsoftGraph";
 import type { AiPublicConfig, AiSecrets, BackupPublicConfig, BackupSecrets, MicrosoftPublicConfig, MicrosoftSecrets } from "../integrations/contracts";
 import { isValidCronExpression } from "../scheduled/cron";
 
@@ -61,6 +62,16 @@ export const adminSettingsRouter = router({
   }),
   testMicrosoftGraph: adminProcedure.mutation(async ({ ctx }) => { const result = await persistDiagnostic(await testMicrosoftGraphConnection(), ctx.user.id); await db.updateIntegrationConnectionStatus("microsoft_entra", result.status === "success" ? "connected" : "error"); return result; }),
   testSharePointRest: adminProcedure.mutation(async ({ ctx }) => { const result = await persistDiagnostic(await testSharePointRestConnection(), ctx.user.id); await db.updateIntegrationConnectionStatus("sharepoint", result.status === "success" ? "connected" : "error"); return result; }),
+  discoverSharePointSite: adminProcedure.input(z.object({ siteUrl: z.string().trim().url().max(500) })).mutation(async ({ ctx, input }) => {
+    try {
+      const discovery = await discoverSharePointSite(input.siteUrl);
+      await persistDiagnostic({ provider: "sharepoint", target: input.siteUrl, status: "success", message: `Resolved ${discovery.siteName} and ${discovery.libraries.length} document library option(s).`, durationMs: 0, testedAt: new Date() }, ctx.user.id);
+      return discovery;
+    } catch (error) {
+      await persistDiagnostic({ provider: "sharepoint", target: input.siteUrl, status: "failure", message: error instanceof Error ? error.message : "SharePoint discovery failed.", durationMs: 0, testedAt: new Date() }, ctx.user.id);
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "SharePoint discovery failed." });
+    }
+  }),
   saveAi: adminProcedure.input(z.object({ providerName: z.string().trim().min(1).max(120), baseUrl: z.string().trim().url().max(500), model: z.string().trim().min(1).max(200), apiKey: optionalSecret })).mutation(async ({ ctx, input }) => {
     const existing = await db.getIntegrationSettingByProvider("ai_assistant");
     const previousSecrets = existing?.encryptedSecrets ? decryptJson<AiSecrets>(existing.encryptedSecrets) : {};

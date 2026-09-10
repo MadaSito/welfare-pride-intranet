@@ -204,6 +204,22 @@ export async function createInitialLocalAdmin(input: {
   });
 }
 
+export async function createManagedLocalUser(input: { openId: string; name: string; email: string; role: "user" | "admin"; passwordHash: string; passwordSalt: string; mfaRequired: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return db.transaction(async tx => {
+    const [existingUser] = await tx.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1);
+    const [existingCredential] = await tx.select({ id: localCredentials.id }).from(localCredentials).where(eq(localCredentials.email, input.email)).limit(1);
+    if (existingUser || existingCredential) throw new Error("A portal account already uses this email address.");
+    await tx.insert(users).values({ openId: input.openId, name: input.name, email: input.email, loginMethod: "local", role: input.role, lastSignedIn: new Date() });
+    const [user] = await tx.select().from(users).where(eq(users.openId, input.openId)).limit(1);
+    if (!user) throw new Error("Local account could not be created.");
+    await tx.insert(localCredentials).values({ userId: user.id, email: input.email, passwordHash: input.passwordHash, passwordSalt: input.passwordSalt, mustChangePassword: true, mfaRequired: input.mfaRequired });
+    await tx.insert(employeeProfiles).values({ userId: user.id, displayName: input.name, email: input.email, source: "local" });
+    return user;
+  });
+}
+
 export async function getLocalCredentialByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
