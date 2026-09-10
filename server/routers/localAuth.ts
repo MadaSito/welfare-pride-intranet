@@ -78,6 +78,10 @@ export const localAuthRouter = router({
         throw genericLoginError();
       }
       const { credential, user } = result;
+      if (credential.loginDisabled) {
+        await hashPassword(input.password);
+        throw genericLoginError();
+      }
       if (credential.lockedUntil && credential.lockedUntil.getTime() > Date.now()) throw genericLoginError();
       const valid = await verifyPassword(input.password, credential.passwordHash, credential.passwordSalt);
       if (!valid) {
@@ -148,17 +152,23 @@ export const localAuthRouter = router({
     }),
   setMfaRequirement: adminProcedure
     .input(z.object({ userId: z.number().int().positive(), required: z.boolean() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       await db.setLocalMfaRequired(input);
+      await db.appendOperationAuditEvent({ entityType: "local_user", entityId: input.userId, eventType: "mfa_requirement_updated", status: "succeeded", message: `Local account MFA requirement ${input.required ? "enabled" : "disabled"}.`, metadataJson: JSON.stringify({ required: input.required }), actorUserId: ctx.user.id });
       return { success: true } as const;
     }),
   listLocalMfaPolicies: adminProcedure.query(async () => db.listLocalMfaPolicies()),
-  createManagedLocalUser: adminProcedure.input(z.object({ name: z.string().trim().min(2).max(120), email: z.string().trim().email().max(320), password: z.string().min(12).max(128), role: z.enum(["user", "admin"]), mfaRequired: z.boolean() })).mutation(async ({ input }) => {
+  updateManagedUserLifecycle: adminProcedure.input(z.object({ userId: z.number().int().positive(), loginDisabled: z.boolean(), identityProvider: z.enum(["local", "entra", "oidc", "saml"]), resetMfa: z.boolean().default(false) })).mutation(async ({ ctx, input }) => {
+    await db.updateManagedLocalUserLifecycle(input);
+    await db.appendOperationAuditEvent({ entityType: "local_user", entityId: input.userId, eventType: "lifecycle_updated", status: "succeeded", message: "Local account lifecycle state updated and active sessions revoked.", metadataJson: JSON.stringify({ loginDisabled: input.identityProvider === "local" ? input.loginDisabled : true, identityProvider: input.identityProvider, mfaReset: input.resetMfa }), actorUserId: ctx.user.id });
+    return { success: true } as const;
+  }),
+  createManagedLocalUser: adminProcedure.input(z.object({ name: z.string().trim().min(2).max(120), email: z.string().trim().email().max(320), password: z.string().min(12).max(128), role: z.enum(["user", "admin"]), mfaRequired: z.boolean() })).mutation(async ({ ctx, input }) => {
     const passwordError = validateStrongPassword(input.password);
     if (passwordError) throw new TRPCError({ code: "BAD_REQUEST", message: passwordError });
     const email = normalizeLogin(input.email);
     const password = await hashPassword(input.password);
-    try { const user = await db.createManagedLocalUser({ openId: `local:${createHash("sha256").update(email).digest("hex").slice(0, 40)}`, name: input.name, email, role: input.role, ...password, mfaRequired: input.mfaRequired }); return { id: user.id, email: user.email, mustChangePassword: true, mfaRequired: input.mfaRequired } as const; }
+    try { const user = await db.createManagedLocalUser({ openId: `local:${createHash("sha256").update(email).digest("hex").slice(0, 40)}`, name: input.name, email, role: input.role, ...password, mfaRequired: input.mfaRequired }); await db.appendOperationAuditEvent({ entityType: "local_user", entityId: user.id, eventType: "created", status: "succeeded", message: "Local user account created with forced password rotation.", metadataJson: JSON.stringify({ role: input.role, mfaRequired: input.mfaRequired }), actorUserId: ctx.user.id }); return { id: user.id, email: user.email, mustChangePassword: true, mfaRequired: input.mfaRequired } as const; }
     catch (error) { throw new TRPCError({ code: "CONFLICT", message: error instanceof Error ? error.message : "Local account could not be created." }); }
   }),
   logout: publicProcedure.mutation(async ({ ctx }) => {

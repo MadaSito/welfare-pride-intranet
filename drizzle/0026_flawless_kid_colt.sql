@@ -1,0 +1,2 @@
+ALTER TABLE `local_credentials` ADD `loginDisabled` boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `local_credentials` ADD `identityProvider` enum('local','entra','oidc','saml') DEFAULT 'local' NOT NULL;

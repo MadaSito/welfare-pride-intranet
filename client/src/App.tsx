@@ -26,6 +26,10 @@ import BusinessManagement from "./pages/BusinessManagement";
 import CustomPortalPage from "./pages/CustomPortalPage";
 import { RequireAdmin } from "./components/RequireAdmin";
 import SecurityCenter from "./pages/SecurityCenter";
+import RoleManagement from "./pages/RoleManagement";
+import EmailCenter from "./pages/EmailCenter";
+import ContentApprovals from "./pages/ContentApprovals";
+import AuditCenter from "./pages/AuditCenter";
 
 function Router() {
   return (
@@ -50,6 +54,10 @@ function Router() {
         <Route path="/admin/backups"><RequireAdmin><BackupCenter /></RequireAdmin></Route>
         <Route path="/admin/restores"><RequireAdmin><RestoreHistory /></RequireAdmin></Route>
         <Route path="/admin/security"><RequireAdmin><SecurityCenter /></RequireAdmin></Route>
+        <Route path="/admin/roles"><RequireAdmin><RoleManagement /></RequireAdmin></Route>
+        <Route path="/admin/email"><RequireAdmin><EmailCenter /></RequireAdmin></Route>
+        <Route path="/admin/approvals" component={ContentApprovals} />
+        <Route path="/admin/audit" component={AuditCenter} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

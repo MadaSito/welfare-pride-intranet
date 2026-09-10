@@ -11,6 +11,7 @@ const linkInput = z.object({
   url: z.string().trim().url(),
   category: z.string().trim().min(1).max(100),
   iconKey: z.string().trim().min(1).max(64),
+  actionLabel: z.string().trim().min(2).max(160).nullable().optional(),
   sortOrder: z.number().int().min(0).max(10_000),
   isActive: z.boolean(),
 });

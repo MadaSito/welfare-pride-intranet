@@ -17,6 +17,7 @@ const resourceInput = z.object({
   slug: slug.optional(),
   label: z.string().trim().min(2).max(160),
   navigationGroup: z.string().trim().min(2).max(120),
+  navigationGroupOrder: z.number().int().min(0).max(10_000).optional(),
   iconKey: z.string().trim().regex(/^[a-z0-9-]+$/).min(2).max(64),
   body: z.string().trim().max(20_000).nullable().optional(),
   accessMode: z.enum(["all_authenticated", "restricted"]),
@@ -101,6 +102,15 @@ export const portalAccessRouter = router({
     return db.getPortalResourceAssignments(input.resourceId);
   }),
 
+  reorderResources: adminProcedure.input(z.object({ items: z.array(z.object({ id: z.number().int().positive(), navigationGroup: z.string().trim().min(2).max(120), navigationGroupOrder: z.number().int().min(0).max(10_000), sortOrder: z.number().int().min(0).max(10_000) })).min(1).max(500) })).mutation(async ({ ctx, input }) => {
+    const current = await db.listPortalResources(true);
+    if (new Set(input.items.map(item => item.id)).size !== input.items.length || !input.items.every(item => current.some(resource => resource.id === item.id))) throw new TRPCError({ code: "BAD_REQUEST", message: "The submitted section order is invalid." });
+    await db.updatePortalResourceOrder(input.items);
+    await db.appendAccessControlAuditEvent({ action: "portal_resource_order_updated", actorUserId: ctx.user.id, metadataJson: JSON.stringify({ resourceIds: input.items.map(item => item.id) }) });
+    await db.appendOperationAuditEvent({ entityType: "portal_resource", entityId: input.items[0].id, eventType: "reordered", status: "succeeded", message: "Portal resource and navigation-section order updated.", metadataJson: JSON.stringify({ resourceIds: input.items.map(item => item.id) }), actorUserId: ctx.user.id });
+    return { success: true } as const;
+  }),
+
   saveResource: adminProcedure.input(resourceInput).mutation(async ({ ctx, input }) => {
     if (!input.id && input.resourceType !== "page") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "New portal resources must be custom pages; system modules are provisioned by the application." });
@@ -126,6 +136,7 @@ export const portalAccessRouter = router({
       label: input.label,
       path: path || existing?.path || "/",
       navigationGroup: input.navigationGroup,
+      navigationGroupOrder: input.navigationGroupOrder,
       iconKey: input.iconKey,
       body: input.body ?? null,
       accessMode: input.accessMode,
@@ -147,6 +158,7 @@ export const portalAccessRouter = router({
       actorUserId: ctx.user.id,
       metadataJson: JSON.stringify({ resourceType: resource.resourceType, resourceKey: resource.resourceKey, accessMode: resource.accessMode, assignmentCount: input.assignments.length }),
     });
+    await db.appendOperationAuditEvent({ entityType: "portal_resource", entityId: resource.id, eventType: existing ? "updated" : "created", status: "succeeded", message: `${existing ? "Updated" : "Created"} portal resource: ${resource.label}.`, metadataJson: JSON.stringify({ resourceKey: resource.resourceKey, navigationGroup: resource.navigationGroup, accessMode: resource.accessMode, published: resource.isPublished }), actorUserId: ctx.user.id });
     return resource;
   }),
 
@@ -155,6 +167,7 @@ export const portalAccessRouter = router({
     if (!resource) throw new TRPCError({ code: "NOT_FOUND", message: "Portal resource not found." });
     await db.deleteCustomPortalResource(input.id);
     await db.appendAccessControlAuditEvent({ action: "portal_resource_deleted", actorUserId: ctx.user.id, metadataJson: JSON.stringify({ resourceKey: resource.resourceKey }) });
+    await db.appendOperationAuditEvent({ entityType: "portal_resource", entityId: resource.id, eventType: "deleted", status: "succeeded", message: `Deleted custom portal page: ${resource.label}.`, metadataJson: JSON.stringify({ resourceKey: resource.resourceKey }), actorUserId: ctx.user.id });
     return { success: true } as const;
   }),
 });

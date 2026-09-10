@@ -15,7 +15,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { sidebarLayout } from "@/lib/sidebarLayout";
-import { ArchiveRestore, BriefcaseBusiness, CalendarDays, CalendarHeart, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LockKeyhole, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
+import { ArchiveRestore, BriefcaseBusiness, CalendarDays, CalendarHeart, ClipboardCheck, ClipboardList, CloudCog, FileText, Home, Info, KeyRound, Laptop, Link2, Loader2, LockKeyhole, LogOut, Megaphone, Network, PanelLeftClose, Search, Settings, ShieldCheck, Users, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -36,9 +36,13 @@ const adminItems: NavItem[] = [
   { icon: Settings, label: "Integration Settings", path: "/admin/integrations" },
   { icon: ShieldCheck, label: "Security Center", path: "/admin/security" },
   { icon: LockKeyhole, label: "Access & Pages", path: "/admin/access-pages" },
+  { icon: UsersRound, label: "Roles & Permissions", path: "/admin/roles" },
+  { icon: Megaphone, label: "Email Center", path: "/admin/email" },
   { icon: CloudCog, label: "Backup Center", path: "/admin/backups" },
   { icon: ArchiveRestore, label: "Restore History", path: "/admin/restores" },
 ] ;
+const approvalItem: NavItem = { icon: ClipboardCheck, label: "Content Approval", path: "/admin/approvals" };
+const auditItem: NavItem = { icon: ClipboardList, label: "Audit Center", path: "/admin/audit" };
 
 function SignInScreen() {
   const [authStatus, setAuthStatus] = useState<{ configured: boolean; protocols: { oidc: boolean; oauth2: boolean; saml2: boolean; silentSignIn: boolean } } | null>(null);
@@ -203,6 +207,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const portalNavigation = trpc.portalAccess.navigation.useQuery(undefined, { enabled: Boolean(user) });
+  const permissionSummary = trpc.rbac.myPermissions.useQuery(undefined, { enabled: Boolean(user) });
   const navigationGroups = useMemo<NavGroup[]>(() => {
     const grouped = new Map<string, NavItem[]>();
     for (const resource of portalNavigation.data?.resources || []) {
@@ -212,7 +217,9 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
     }
     return Array.from(grouped, ([label, items]) => ({ label, items }));
   }, [portalNavigation.data?.resources]);
-  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...(user?.role === "admin" ? adminItems : [])], [navigationGroups, user?.role]);
+  const canApproveSubmissions = user?.role === "admin" || permissionSummary.data?.permissions.includes("approve_submissions");
+  const canViewAudit = user?.role === "admin" || permissionSummary.data?.permissions.includes("view_audit");
+  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...(canApproveSubmissions ? [approvalItem] : []), ...(canViewAudit ? [auditItem] : []), ...(user?.role === "admin" ? adminItems : [])], [canApproveSubmissions, canViewAudit, navigationGroups, user?.role]);
   const activeItem = allItems.find(item => item.path === "/" ? location === "/" : location.startsWith(item.path));
 
   return (

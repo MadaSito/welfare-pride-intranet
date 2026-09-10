@@ -145,8 +145,18 @@
 - [x] Add administrator-managed escalation-owner assignments for high-severity Security Center alerts with durable assignment audit history.
 - [x] Add a controlled critical-alert acknowledgement and incident-case tracking workflow with case reference, status, assignee, timestamps, and audit events.
 - [x] Add regression coverage, responsive visual validation, operator documentation, and isolated acceptance evidence for security-event badges, escalation ownership, and critical incident cases.
-- [ ] Add guided Microsoft Graph configuration with secure credential storage, connection validation, and SharePoint site-address discovery that fills site and document-library identifiers.
-- [ ] Add full administrator user lifecycle management for local accounts, role/status changes, MFA enforcement/reset, and safe local-to-Microsoft Entra or SSO transition preparation.
-- [ ] Add administrator controls to reorder navigation and custom portal sections with server-enforced validation and durable ordering.
-- [ ] Refresh the standalone VPS, Docker, Azure VM, and Azure Container deployment runbooks and produce reviewed Markdown and PDF versions for each target.
-- [ ] Add migration and regression coverage, isolated acceptance, and operator documentation for the Graph setup, user lifecycle, and section-ordering workflows.
+- [x] Add guided Microsoft Graph configuration with secure credential storage, connection validation, and SharePoint site-address discovery that fills site and document-library identifiers.
+- [x] Add full administrator user lifecycle management for local accounts, role/status changes, MFA enforcement/reset, and safe local-to-Microsoft Entra or SSO transition preparation.
+- [x] Add administrator controls to reorder navigation and custom portal sections with server-enforced validation and durable ordering.
+- [x] Refresh the standalone VPS, Docker, Azure VM, and Azure Container deployment runbooks and produce reviewed Markdown and PDF versions for each target.
+- [x] Add migration and regression coverage, isolated acceptance, and operator documentation for the Graph setup, user lifecycle, and section-ordering workflows.
+- [x] Preserve a credential-free Microsoft Graph and SharePoint configuration state, with clear setup readiness guidance and safe unconfigured behavior until the administrator chooses to supply Microsoft credentials.
+- [x] Add configurable application-specific resource action labels and editable resource titles, navigation groups, and custom portal sections.
+- [x] Add drag-and-drop portal resource ordering with accessible keyboard alternatives and server-validated persistent sort updates.
+- [x] Add Microsoft Graph-ready mail integration settings, custom email templates, BCC controls, event-triggered send queue, delivery logs, and safe resend controls while leaving credentials blank.
+- [x] Expand Backup Center with destination configuration including SharePoint readiness, manual and scheduled run controls, backup scopes, verification, downloadable artifacts, and local retention policy management.
+- [x] Add an employee birthday calendar with privacy-aware profile data handling and opt-in visibility controls.
+- [x] Add the Intranet Portal Manager role, custom role definitions, permission assignments, and server-enforced role-based authorization.
+- [x] Add employee announcement and event submissions with administrator or Intranet Portal Manager approval workflow.
+- [x] Add a System Audit Center for searchable, immutable change records covering resources, configuration, user lifecycle, backups, mail, approvals, and security actions.
+- [x] Add migrations, automated regression coverage, isolated acceptance validation, and operator documentation for the administration expansion.

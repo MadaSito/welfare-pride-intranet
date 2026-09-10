@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import * as db from "../db";
+import type { PortalPermission } from "../../shared/roles";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -59,3 +60,13 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+export function permissionProcedure(permission: PortalPermission) {
+  return protectedProcedure.use(t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (!ctx.user || (ctx.user.role !== "admin" && !(await db.userHasPortalPermission(ctx.user.id, permission)))) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Your portal role does not include this permission." });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }));
+}

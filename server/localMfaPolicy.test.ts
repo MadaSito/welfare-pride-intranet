@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   listLocalMfaPolicies: vi.fn(),
   setLocalMfaRequired: vi.fn(),
+  appendOperationAuditEvent: vi.fn(),
 }));
 
 vi.mock("./db", () => ({
   listLocalMfaPolicies: mocks.listLocalMfaPolicies,
   setLocalMfaRequired: mocks.setLocalMfaRequired,
+  appendOperationAuditEvent: mocks.appendOperationAuditEvent,
 }));
 
 import { localAuthRouter } from "./routers/localAuth";

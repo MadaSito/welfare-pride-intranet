@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, like, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
 import {
@@ -9,6 +9,8 @@ import {
   holidays,
   technologyEmbeds,
   importantLinks,
+  emailTemplates,
+  emailDeliveries,
   contentBlocks,
   founders,
   milestones,
@@ -38,11 +40,14 @@ import {
   securityEventReadCursors,
   securityEscalationOwners,
   securityIncidentCases,
+  portalRoles,
+  portalUserRoleAssignments,
 } from "../drizzle/schema";
 import { projectBirthdayDisplays } from "./privacy/birthdays";
 import { buildSecurityAnalytics } from "./security/securityAnalytics";
 import { shouldTriggerHighSeverityAlert } from "./security/securityAlerts";
 import { BUILT_IN_PORTAL_RESOURCES, type PortalAssignmentSubjectType, type PortalResourceAccessMode } from "../shared/portalAccess";
+import { INTRANET_PORTAL_MANAGER_PERMISSIONS, type PortalPermission } from "../shared/roles";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: mysql.Pool | null = null;
@@ -220,6 +225,75 @@ export async function createManagedLocalUser(input: { openId: string; name: stri
   });
 }
 
+export async function ensureSystemPortalRoles() {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(portalRoles).values({ name: "Intranet Portal Manager", description: "Manages portal content, approvals, resources, backups, email operations, and audit review without full administrator access.", permissionsJson: JSON.stringify(INTRANET_PORTAL_MANAGER_PERMISSIONS), isSystem: true }).onDuplicateKeyUpdate({ set: { name: sql`${portalRoles.name}` } });
+}
+
+function parsePortalPermissions(value: string): PortalPermission[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is PortalPermission => typeof item === "string") : [];
+  } catch { return []; }
+}
+
+export async function listPortalRoles() {
+  await ensureSystemPortalRoles();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(portalRoles).orderBy(desc(portalRoles.isSystem), asc(portalRoles.name));
+}
+
+export async function listPortalRoleAssignments() {
+  await ensureSystemPortalRoles();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ userId: portalUserRoleAssignments.userId, roleId: portalUserRoleAssignments.roleId, roleName: portalRoles.name }).from(portalUserRoleAssignments).innerJoin(portalRoles, eq(portalUserRoleAssignments.roleId, portalRoles.id));
+}
+
+export async function savePortalRole(input: { id?: number; name: string; description?: string | null; permissions: PortalPermission[]; actorUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (input.id) {
+    const existing = (await db.select().from(portalRoles).where(eq(portalRoles.id, input.id)).limit(1))[0];
+    if (!existing) throw new Error("Portal role not found.");
+    if (existing.isSystem && existing.name !== input.name) throw new Error("The built-in Intranet Portal Manager role name cannot be changed.");
+    await db.update(portalRoles).set({ name: input.name, description: input.description ?? null, permissionsJson: JSON.stringify(input.permissions) }).where(eq(portalRoles.id, input.id));
+    return (await db.select().from(portalRoles).where(eq(portalRoles.id, input.id)).limit(1))[0];
+  }
+  const result = await db.insert(portalRoles).values({ name: input.name, description: input.description ?? null, permissionsJson: JSON.stringify(input.permissions), createdByUserId: input.actorUserId });
+  return (await db.select().from(portalRoles).where(eq(portalRoles.id, Number(result[0].insertId))).limit(1))[0];
+}
+
+export async function replaceUserPortalRoles(input: { userId: number; roleIds: number[]; actorUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const uniqueRoleIds = Array.from(new Set(input.roleIds));
+  if (uniqueRoleIds.length) {
+    const existing = await db.select({ id: portalRoles.id }).from(portalRoles).where(inArray(portalRoles.id, uniqueRoleIds));
+    if (existing.length !== uniqueRoleIds.length) throw new Error("One or more selected portal roles do not exist.");
+  }
+  await db.transaction(async tx => {
+    await tx.delete(portalUserRoleAssignments).where(eq(portalUserRoleAssignments.userId, input.userId));
+    if (uniqueRoleIds.length) await tx.insert(portalUserRoleAssignments).values(uniqueRoleIds.map(roleId => ({ userId: input.userId, roleId, assignedByUserId: input.actorUserId })));
+  });
+}
+
+export async function userHasPortalPermission(userId: number, permission: PortalPermission) {
+  const db = await getDb();
+  if (!db) return false;
+  const assigned = await db.select({ permissionsJson: portalRoles.permissionsJson }).from(portalUserRoleAssignments).innerJoin(portalRoles, eq(portalUserRoleAssignments.roleId, portalRoles.id)).where(eq(portalUserRoleAssignments.userId, userId));
+  return assigned.some(role => parsePortalPermissions(role.permissionsJson).includes(permission));
+}
+
+export async function getUserPortalPermissions(userId: number) {
+  const db = await getDb();
+  if (!db) return [] as PortalPermission[];
+  const assigned = await db.select({ permissionsJson: portalRoles.permissionsJson }).from(portalUserRoleAssignments).innerJoin(portalRoles, eq(portalUserRoleAssignments.roleId, portalRoles.id)).where(eq(portalUserRoleAssignments.userId, userId));
+  return Array.from(new Set(assigned.flatMap(role => parsePortalPermissions(role.permissionsJson))));
+}
+
 export async function getLocalCredentialByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -304,6 +378,23 @@ export async function setLocalMfaRequired(input: { userId: number; required: boo
   await db.update(localCredentials).set({ mfaRequired: input.required }).where(eq(localCredentials.userId, input.userId));
 }
 
+export async function updateManagedLocalUserLifecycle(input: { userId: number; loginDisabled: boolean; identityProvider: "local" | "entra" | "oidc" | "saml"; resetMfa: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const patch: Partial<typeof localCredentials.$inferInsert> = {
+    loginDisabled: input.identityProvider === "local" ? input.loginDisabled : true,
+    identityProvider: input.identityProvider,
+  };
+  if (input.resetMfa) {
+    patch.totpSecretEncrypted = null;
+    patch.recoveryCodesEncrypted = null;
+    patch.mfaEnabled = false;
+    patch.mfaEnrolledAt = null;
+  }
+  await db.update(localCredentials).set(patch).where(eq(localCredentials.userId, input.userId));
+  await revokeAllAppSessionsForUser(input.userId);
+}
+
 export async function listLocalMfaPolicies() {
   const db = await getDb();
   if (!db) return [];
@@ -317,6 +408,8 @@ export async function listLocalMfaPolicies() {
       mfaEnabled: localCredentials.mfaEnabled,
       mfaEnrolledAt: localCredentials.mfaEnrolledAt,
       mustChangePassword: localCredentials.mustChangePassword,
+      loginDisabled: localCredentials.loginDisabled,
+      identityProvider: localCredentials.identityProvider,
     })
     .from(localCredentials)
     .innerJoin(users, eq(localCredentials.userId, users.id))
@@ -460,6 +553,8 @@ export async function upsertBackupDestination(input: {
   secretMaskJson?: string | null;
   isEnabled: boolean;
   status: "unconfigured" | "configured" | "connected" | "degraded" | "error";
+  backupScope: "configuration" | "configuration_and_secrets" | "secrets_only" | "full_platform";
+  localRetentionDays: number;
   createdByUserId: number;
 }) {
   const db = await getDb();
@@ -470,6 +565,8 @@ export async function upsertBackupDestination(input: {
     ...(input.secretMaskJson !== undefined ? { secretMaskJson: input.secretMaskJson } : {}),
     isEnabled: input.isEnabled,
     status: input.status,
+    backupScope: input.backupScope,
+    localRetentionDays: input.localRetentionDays,
     createdByUserId: input.createdByUserId,
   } });
   return (await db.select().from(backupDestinations).where(and(eq(backupDestinations.provider, input.provider), eq(backupDestinations.displayName, input.displayName))).limit(1))[0];
@@ -552,6 +649,29 @@ export async function getLatestBackupRunForDestination(destinationId: number) {
   )[0];
 }
 
+export async function listExpiredLocalBackupRuns(destinationId: number, cutoff: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(backupRuns).where(and(eq(backupRuns.destinationId, destinationId), lt(backupRuns.completedAt, cutoff), isNotNull(backupRuns.localArtifactPath)));
+}
+
+export async function buildBackupSnapshot(scope: "configuration" | "configuration_and_secrets" | "secrets_only" | "full_platform") {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const integrations = await db.select().from(integrationSettings);
+  const encryptedIntegrations = integrations.map(item => ({ provider: item.provider, displayName: item.displayName, publicConfigJson: scope === "secrets_only" ? null : item.publicConfigJson, encryptedSecrets: item.encryptedSecrets, secretMaskJson: item.secretMaskJson, status: item.status, updatedAt: item.updatedAt }));
+  const base = { schemaVersion: 2, createdAt: new Date().toISOString(), scope, integrationSettings: scope === "configuration" ? integrations.map(item => ({ provider: item.provider, displayName: item.displayName, publicConfigJson: item.publicConfigJson, secretMaskJson: item.secretMaskJson, status: item.status, updatedAt: item.updatedAt })) : encryptedIntegrations };
+  if (scope !== "full_platform") return base;
+  return {
+    ...base,
+    portalResources: await db.select().from(portalResources), portalResourceAssignments: await db.select().from(portalResourceAssignments),
+    portalRoles: await db.select().from(portalRoles), portalUserRoleAssignments: await db.select().from(portalUserRoleAssignments),
+    employeeProfiles: await db.select().from(employeeProfiles), announcements: await db.select().from(announcements), companyEvents: await db.select().from(companyEvents), holidays: await db.select().from(holidays),
+    importantLinks: await db.select().from(importantLinks), contentBlocks: await db.select().from(contentBlocks), founders: await db.select().from(founders), milestones: await db.select().from(milestones), technologyEmbeds: await db.select().from(technologyEmbeds),
+    backupDestinations: await db.select().from(backupDestinations), users: await db.select().from(users), localCredentials: await db.select().from(localCredentials), securitySettings: await db.select().from(securitySettings),
+  };
+}
+
 export async function createRestoreRun(input: typeof restoreRuns.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -582,6 +702,20 @@ export async function listOperationAuditEvents(limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(operationAuditEvents).orderBy(desc(operationAuditEvents.createdAt)).limit(limit);
+}
+
+export async function searchOperationAuditEvents(input: { entityType?: string; eventType?: string; status?: string; query?: string; from?: Date; to?: Date; limit?: number }) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (input.entityType) conditions.push(eq(operationAuditEvents.entityType, input.entityType));
+  if (input.eventType) conditions.push(eq(operationAuditEvents.eventType, input.eventType));
+  if (input.status) conditions.push(eq(operationAuditEvents.status, input.status));
+  if (input.from) conditions.push(gte(operationAuditEvents.createdAt, input.from));
+  if (input.to) conditions.push(lte(operationAuditEvents.createdAt, input.to));
+  const query = input.query?.trim();
+  if (query) { const pattern = `%${query.slice(0, 120)}%`; conditions.push(or(like(operationAuditEvents.entityType, pattern), like(operationAuditEvents.eventType, pattern), like(operationAuditEvents.message, pattern), like(operationAuditEvents.metadataJson, pattern))); }
+  return db.select().from(operationAuditEvents).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(operationAuditEvents.createdAt)).limit(Math.min(Math.max(input.limit || 200, 1), 500));
 }
 
 export async function upsertMicrosoftOauthSession(input: {
@@ -1085,6 +1219,62 @@ export async function updateImportantLink(id: number, patch: Partial<typeof impo
   await db.update(importantLinks).set(patch).where(eq(importantLinks.id, id));
 }
 
+export async function listEmailTemplates() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(emailTemplates).orderBy(desc(emailTemplates.updatedAt), asc(emailTemplates.name));
+}
+
+export async function getEmailTemplateById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(emailTemplates).where(eq(emailTemplates.id, id)).limit(1))[0];
+}
+
+export async function saveEmailTemplate(input: { id?: number; name: string; eventType: "announcement_published" | "event_published" | "manual"; subjectTemplate: string; bodyTemplate: string; isActive: boolean; actorUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (input.id) {
+    await db.update(emailTemplates).set({ name: input.name, eventType: input.eventType, subjectTemplate: input.subjectTemplate, bodyTemplate: input.bodyTemplate, isActive: input.isActive }).where(eq(emailTemplates.id, input.id));
+    return getEmailTemplateById(input.id);
+  }
+  const result = await db.insert(emailTemplates).values({ name: input.name, eventType: input.eventType, subjectTemplate: input.subjectTemplate, bodyTemplate: input.bodyTemplate, isActive: input.isActive, createdByUserId: input.actorUserId });
+  return getEmailTemplateById(Number(result[0].insertId));
+}
+
+export async function listEmailDeliveries(limit = 150) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(emailDeliveries).orderBy(desc(emailDeliveries.createdAt)).limit(Math.min(Math.max(limit, 1), 500));
+}
+
+export async function getEmailDeliveryById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(emailDeliveries).where(eq(emailDeliveries.id, id)).limit(1))[0];
+}
+
+export async function createEmailDelivery(input: typeof emailDeliveries.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(emailDeliveries).values(input);
+  return getEmailDeliveryById(Number(result[0].insertId));
+}
+
+export async function updateEmailDelivery(id: number, patch: Partial<typeof emailDeliveries.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(emailDeliveries).set(patch).where(eq(emailDeliveries.id, id));
+  return getEmailDeliveryById(id);
+}
+
+export async function listActiveEmployeeEmailAddresses() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ email: employeeProfiles.email }).from(employeeProfiles).where(and(eq(employeeProfiles.isActive, true), sql`${employeeProfiles.email} IS NOT NULL`));
+  return Array.from(new Set(rows.map(row => row.email?.trim().toLowerCase()).filter((email): email is string => Boolean(email))));
+}
+
 export async function listPublishedContentBlocks(pageKey: string) {
   const db = await getDb();
   if (!db) return [];
@@ -1185,7 +1375,13 @@ export async function listPortalResources(includeUnpublished = false) {
     .select()
     .from(portalResources)
     .where(includeUnpublished ? undefined : eq(portalResources.isPublished, true))
-    .orderBy(asc(portalResources.navigationGroup), asc(portalResources.sortOrder), asc(portalResources.label));
+    .orderBy(asc(portalResources.navigationGroupOrder), asc(portalResources.navigationGroup), asc(portalResources.sortOrder), asc(portalResources.label));
+}
+
+export async function updatePortalResourceOrder(items: Array<{ id: number; navigationGroup: string; navigationGroupOrder: number; sortOrder: number }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.transaction(async tx => { for (const item of items) await tx.update(portalResources).set({ navigationGroup: item.navigationGroup, navigationGroupOrder: item.navigationGroupOrder, sortOrder: item.sortOrder }).where(eq(portalResources.id, item.id)); });
 }
 
 export async function getPortalResourceByKey(resourceKey: string) {
@@ -1381,6 +1577,7 @@ export async function savePortalResource(input: {
   label: string;
   path: string;
   navigationGroup: string;
+  navigationGroupOrder?: number;
   iconKey: string;
   body?: string | null;
   accessMode: PortalResourceAccessMode;
@@ -1399,6 +1596,7 @@ export async function savePortalResource(input: {
     await db.update(portalResources).set({
       label: input.label,
       navigationGroup: input.navigationGroup,
+      navigationGroupOrder: input.navigationGroupOrder ?? existing.navigationGroupOrder,
       iconKey: input.iconKey,
       body: input.body ?? null,
       accessMode: input.accessMode,
@@ -1414,6 +1612,7 @@ export async function savePortalResource(input: {
     label: input.label,
     path: input.path,
     navigationGroup: input.navigationGroup,
+    navigationGroupOrder: input.navigationGroupOrder ?? 0,
     iconKey: input.iconKey,
     body: input.body ?? null,
     accessMode: input.accessMode,

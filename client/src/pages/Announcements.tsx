@@ -19,7 +19,7 @@ type AnnouncementForm = {
   summary: string;
   body: string;
   category: string;
-  status: "draft" | "published" | "archived";
+  status: "draft" | "pending_approval" | "published" | "declined" | "archived";
   isPinned: boolean;
   publishAt: string;
   expiresAt: string;
@@ -83,6 +83,10 @@ export default function Announcements() {
     },
     onError: error => toast.error(error.message),
   });
+  const submitForApproval = trpc.announcements.submit.useMutation({
+    onSuccess: async () => { await utils.announcements.list.invalidate(); toast.success("Announcement submitted for approval."); setEditorOpen(false); },
+    onError: error => toast.error(error.message),
+  });
 
   const categories = useMemo(() => Array.from(new Set(items.map(item => item.category))).sort(), [items]);
   const filtered = useMemo(
@@ -121,7 +125,8 @@ export default function Announcements() {
       expiresAt: form.expiresAt ? new Date(form.expiresAt) : null,
     };
     if (editingId) update.mutate({ id: editingId, values });
-    else create.mutate(values);
+    else if (isAdmin) create.mutate(values);
+    else submitForApproval.mutate({ title: form.title, summary: form.summary || null, body: form.body, category: form.category });
   }
 
   return (
@@ -131,7 +136,7 @@ export default function Announcements() {
         title="Announcements"
         description="Read Welfare Pride company updates, important notices, and news from across the organization."
         icon={Megaphone}
-        actions={isAdmin ? <Button className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" onClick={() => openEditor()}><Plus className="mr-2 h-4 w-4" />New announcement</Button> : undefined}
+        actions={<Button className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" onClick={() => openEditor()}><Plus className="mr-2 h-4 w-4" />{isAdmin ? "New announcement" : "Submit announcement"}</Button>}
       />
 
       {(published.error || adminList.error) ? (
@@ -172,18 +177,16 @@ export default function Announcements() {
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? "Edit announcement" : "Create announcement"}</DialogTitle><DialogDescription>Draft, schedule, or publish an official Welfare Pride company update.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Edit announcement" : isAdmin ? "Create announcement" : "Submit announcement"}</DialogTitle><DialogDescription>{isAdmin ? "Draft, schedule, or publish an official Welfare Pride company update." : "Your submission will be reviewed by an administrator or Intranet Portal Manager before publishing."}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2"><Label>Title</Label><Input value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Category</Label><Input value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Status</Label><select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as AnnouncementForm["status"] }))} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>
+            {isAdmin ? <div className="space-y-2"><Label>Status</Label><select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as AnnouncementForm["status"] }))} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="draft">Draft</option><option value="pending_approval">Pending approval</option><option value="published">Published</option><option value="declined">Declined</option><option value="archived">Archived</option></select></div> : <div className="rounded-xl border border-[#D58240]/25 bg-[#D58240]/5 p-3 text-sm text-[#7A431F]">Submission status: pending approval</div>}
             <div className="space-y-2 sm:col-span-2"><Label>Summary</Label><Textarea rows={2} value={form.summary} onChange={event => setForm(current => ({ ...current, summary: event.target.value }))} /></div>
             <div className="space-y-2 sm:col-span-2"><Label>Body</Label><Textarea rows={8} value={form.body} onChange={event => setForm(current => ({ ...current, body: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Publish at</Label><Input type="datetime-local" value={form.publishAt} onChange={event => setForm(current => ({ ...current, publishAt: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Expires at</Label><Input type="datetime-local" value={form.expiresAt} onChange={event => setForm(current => ({ ...current, expiresAt: event.target.value }))} /></div>
-            <label className="flex items-center gap-2 sm:col-span-2"><Checkbox checked={form.isPinned} onCheckedChange={checked => setForm(current => ({ ...current, isPinned: checked === true }))} /><span className="text-sm font-medium">Pin this announcement</span></label>
+            {isAdmin ? <><div className="space-y-2"><Label>Publish at</Label><Input type="datetime-local" value={form.publishAt} onChange={event => setForm(current => ({ ...current, publishAt: event.target.value }))} /></div><div className="space-y-2"><Label>Expires at</Label><Input type="datetime-local" value={form.expiresAt} onChange={event => setForm(current => ({ ...current, expiresAt: event.target.value }))} /></div><label className="flex items-center gap-2 sm:col-span-2"><Checkbox checked={form.isPinned} onCheckedChange={checked => setForm(current => ({ ...current, isPinned: checked === true }))} /><span className="text-sm font-medium">Pin this announcement</span></label></> : null}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={submit} disabled={!form.title || !form.body || create.isPending || update.isPending} className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90">Save announcement</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={submit} disabled={!form.title || !form.body || create.isPending || update.isPending || submitForApproval.isPending} className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90">{isAdmin || editingId ? "Save announcement" : "Submit for approval"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

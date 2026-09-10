@@ -37,6 +37,42 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const portalRoles = mysqlTable(
+  "portal_roles",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description"),
+    permissionsJson: text("permissionsJson").notNull(),
+    isSystem: boolean("isSystem").default(false).notNull(),
+    createdByUserId: int("createdByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "pr_creator_fk" }).onDelete("set null"),
+    uniqueIndex("portal_roles_name_unique").on(table.name),
+  ],
+);
+
+export const portalUserRoleAssignments = mysqlTable(
+  "portal_user_role_assignments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    roleId: int("roleId").notNull(),
+    assignedByUserId: int("assignedByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.userId], foreignColumns: [users.id], name: "pura_user_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [table.roleId], foreignColumns: [portalRoles.id], name: "pura_role_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [table.assignedByUserId], foreignColumns: [users.id], name: "pura_assign_fk" }).onDelete("set null"),
+    uniqueIndex("portal_user_roles_unique").on(table.userId, table.roleId),
+    index("portal_user_roles_user_idx").on(table.userId),
+  ],
+);
+
 export const localCredentials = mysqlTable(
   "local_credentials",
   {
@@ -55,6 +91,8 @@ export const localCredentials = mysqlTable(
     mfaRequired: boolean("mfaRequired").default(false).notNull(),
     mfaEnrolledAt: timestamp("mfaEnrolledAt"),
     mustChangePassword: boolean("mustChangePassword").default(false).notNull(),
+    loginDisabled: boolean("loginDisabled").default(false).notNull(),
+    identityProvider: mysqlEnum("identityProvider", ["local", "entra", "oidc", "saml"]).default("local").notNull(),
     passwordChangedAt: timestamp("passwordChangedAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -109,6 +147,7 @@ export const employeeProfiles = mysqlTable(
     managerEntraUserId: varchar("managerEntraUserId", { length: 128 }),
     birthdayMonth: int("birthdayMonth"),
     birthdayDay: int("birthdayDay"),
+    birthdayVisible: boolean("birthdayVisible").default(false).notNull(),
     source: mysqlEnum("source", ["local", "entra", "hybrid"])
       .default("local")
       .notNull(),
@@ -167,6 +206,7 @@ export const portalResources = mysqlTable(
     label: varchar("label", { length: 160 }).notNull(),
     path: varchar("path", { length: 220 }).notNull(),
     navigationGroup: varchar("navigationGroup", { length: 120 }).default("Workplace").notNull(),
+    navigationGroupOrder: int("navigationGroupOrder").default(0).notNull(),
     iconKey: varchar("iconKey", { length: 64 }).default("file-text").notNull(),
     body: text("body"),
     accessMode: mysqlEnum("accessMode", ["all_authenticated", "restricted"])
@@ -182,7 +222,7 @@ export const portalResources = mysqlTable(
   table => [
     uniqueIndex("portal_resources_key_unique").on(table.resourceKey),
     uniqueIndex("portal_resources_path_unique").on(table.path),
-    index("portal_resources_published_sort_idx").on(table.isPublished, table.navigationGroup, table.sortOrder),
+    index("portal_resources_published_order_idx").on(table.isPublished, table.navigationGroupOrder, table.sortOrder),
   ],
 );
 
@@ -300,13 +340,16 @@ export const announcements = mysqlTable(
     summary: text("summary"),
     body: text("body").notNull(),
     category: varchar("category", { length: 100 }).default("Company").notNull(),
-    status: mysqlEnum("status", ["draft", "published", "archived"])
+    status: mysqlEnum("status", ["draft", "pending_approval", "published", "declined", "archived"])
       .default("draft")
       .notNull(),
     isPinned: boolean("isPinned").default(false).notNull(),
     publishAt: timestamp("publishAt"),
     expiresAt: timestamp("expiresAt"),
     authorUserId: int("authorUserId").references(() => users.id, { onDelete: "set null" }),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewedAt"),
+    reviewNote: text("reviewNote"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -328,10 +371,13 @@ export const companyEvents = mysqlTable(
     startAt: timestamp("startAt").notNull(),
     endAt: timestamp("endAt").notNull(),
     isAllDay: boolean("isAllDay").default(false).notNull(),
-    status: mysqlEnum("status", ["draft", "published", "cancelled", "archived"])
+    status: mysqlEnum("status", ["draft", "pending_approval", "published", "declined", "cancelled", "archived"])
       .default("draft")
       .notNull(),
     authorUserId: int("authorUserId").references(() => users.id, { onDelete: "set null" }),
+    reviewedByUserId: int("reviewedByUserId").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewedAt"),
+    reviewNote: text("reviewNote"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -383,6 +429,7 @@ export const importantLinks = mysqlTable(
     url: text("url").notNull(),
     category: varchar("category", { length: 100 }).default("Resources").notNull(),
     iconKey: varchar("iconKey", { length: 64 }).default("link").notNull(),
+    actionLabel: varchar("actionLabel", { length: 160 }),
     sortOrder: int("sortOrder").default(0).notNull(),
     isActive: boolean("isActive").default(true).notNull(),
     createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
@@ -392,6 +439,52 @@ export const importantLinks = mysqlTable(
   table => [
     uniqueIndex("important_links_title_unique").on(table.title),
     index("important_links_category_sort_idx").on(table.category, table.sortOrder),
+  ],
+);
+
+export const emailTemplates = mysqlTable(
+  "email_templates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 160 }).notNull(),
+    eventType: mysqlEnum("eventType", ["announcement_published", "event_published", "manual"]).notNull(),
+    subjectTemplate: varchar("subjectTemplate", { length: 500 }).notNull(),
+    bodyTemplate: text("bodyTemplate").notNull(),
+    isActive: boolean("isActive").default(true).notNull(),
+    createdByUserId: int("createdByUserId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    foreignKey({ columns: [table.createdByUserId], foreignColumns: [users.id], name: "et_creator_fk" }).onDelete("set null"),
+    uniqueIndex("email_templates_name_unique").on(table.name),
+    index("email_templates_event_active_idx").on(table.eventType, table.isActive),
+  ],
+);
+
+export const emailDeliveries = mysqlTable(
+  "email_deliveries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    templateId: int("templateId"),
+    eventType: varchar("eventType", { length: 80 }).notNull(),
+    subject: varchar("subject", { length: 500 }).notNull(),
+    bodyText: text("bodyText").notNull(),
+    recipientsJson: text("recipientsJson").notNull(),
+    bccEmail: varchar("bccEmail", { length: 320 }),
+    status: mysqlEnum("status", ["queued", "sent", "failed", "unconfigured"]).default("queued").notNull(),
+    providerMessage: text("providerMessage"),
+    triggeredByUserId: int("triggeredByUserId"),
+    sourceDeliveryId: int("sourceDeliveryId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    sentAt: timestamp("sentAt"),
+  },
+  table => [
+    foreignKey({ columns: [table.templateId], foreignColumns: [emailTemplates.id], name: "ed_template_fk" }).onDelete("set null"),
+    foreignKey({ columns: [table.triggeredByUserId], foreignColumns: [users.id], name: "ed_trigger_fk" }).onDelete("set null"),
+    foreignKey({ columns: [table.sourceDeliveryId], foreignColumns: [table.id], name: "ed_source_fk" }).onDelete("set null"),
+    index("email_deliveries_created_idx").on(table.createdAt),
+    index("email_deliveries_status_idx").on(table.status, table.createdAt),
   ],
 );
 
@@ -517,6 +610,8 @@ export const backupDestinations = mysqlTable(
     scheduleCron: varchar("scheduleCron", { length: 120 }),
     scheduleEnabled: boolean("scheduleEnabled").default(false).notNull(),
     lastScheduledDispatchAt: timestamp("lastScheduledDispatchAt"),
+    backupScope: mysqlEnum("backupScope", ["configuration", "configuration_and_secrets", "secrets_only", "full_platform"]).default("configuration_and_secrets").notNull(),
+    localRetentionDays: int("localRetentionDays").default(30).notNull(),
     /** Retained only for a non-destructive migration from the former managed scheduler. */
     scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
     createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
@@ -542,6 +637,8 @@ export const backupRuns = mysqlTable(
       .default("pending")
       .notNull(),
     artifactName: varchar("artifactName", { length: 240 }),
+    backupScope: mysqlEnum("backupScope", ["configuration", "configuration_and_secrets", "secrets_only", "full_platform"]).default("configuration_and_secrets").notNull(),
+    localArtifactPath: varchar("localArtifactPath", { length: 500 }),
     checksumSha256: varchar("checksumSha256", { length: 64 }),
     byteSize: int("byteSize"),
     message: text("message"),
@@ -750,7 +847,7 @@ export const operationAuditEvents = mysqlTable(
   "operation_audit_events",
   {
     id: int("id").autoincrement().primaryKey(),
-    entityType: mysqlEnum("entityType", ["backup_run", "restore_run", "backup_destination"]).notNull(),
+    entityType: varchar("entityType", { length: 80 }).notNull(),
     entityId: int("entityId").notNull(),
     eventType: varchar("eventType", { length: 80 }).notNull(),
     status: varchar("status", { length: 40 }).notNull(),

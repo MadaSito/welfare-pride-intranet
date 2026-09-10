@@ -1,0 +1,1 @@
+ALTER TABLE `important_links` ADD `actionLabel` varchar(160);

@@ -119,7 +119,7 @@ export const profilesRouter = router({
   }),
 
   updateMe: protectedProcedure
-    .input(z.object({ bio: optionalText(3000), phone: optionalText(64) }))
+    .input(z.object({ bio: optionalText(3000), phone: optionalText(64), birthdayVisible: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       await db.ensureEmployeeProfileForUser(ctx.user);
       return db.updateOwnEmployeeProfile(ctx.user.id, input);
@@ -158,6 +158,7 @@ export const profilesRouter = router({
         managerEntraUserId: optionalText(128),
         birthdayMonth: z.number().int().min(1).max(12).nullable().optional(),
         birthdayDay: z.number().int().min(1).max(31).nullable().optional(),
+        birthdayVisible: z.boolean().optional(),
         isActive: z.boolean().optional(),
       }),
     )

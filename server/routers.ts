@@ -11,6 +11,9 @@ import { dashboardPinsRouter } from "./routers/dashboardPins";
 import { assistantRouter } from "./routers/assistant";
 import { portalAccessRouter } from "./routers/portalAccess";
 import { securityCenterRouter } from "./routers/securityCenter";
+import { rbacRouter } from "./routers/rbac";
+import { auditCenterRouter } from "./routers/auditCenter";
+import { emailCenterRouter } from "./routers/emailCenter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -32,6 +35,9 @@ export const appRouter = router({
   assistant: assistantRouter,
   portalAccess: portalAccessRouter,
   securityCenter: securityCenterRouter,
+  rbac: rbacRouter,
+  auditCenter: auditCenterRouter,
+  emailCenter: emailCenterRouter,
 
   // TODO: add feature routers here, e.g.
   // todo: router({

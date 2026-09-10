@@ -24,7 +24,7 @@ type EventForm = {
   startAt: string;
   endAt: string;
   isAllDay: boolean;
-  status: "draft" | "published" | "cancelled" | "archived";
+  status: "draft" | "pending_approval" | "published" | "declined" | "cancelled" | "archived";
 };
 
 const toLocalInput = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -71,6 +71,7 @@ export default function Events() {
   const create = trpc.events.create.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event created."); setEditorOpen(false); }, onError: error => toast.error(error.message) });
   const update = trpc.events.update.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event updated."); setEditorOpen(false); }, onError: error => toast.error(error.message) });
   const cancel = trpc.events.cancel.useMutation({ onSuccess: async () => { await Promise.all([utils.events.list.invalidate(), utils.events.adminList.invalidate()]); toast.success("Event cancelled."); setDetailId(null); }, onError: error => toast.error(error.message) });
+  const submitForApproval = trpc.events.submit.useMutation({ onSuccess: async () => { await utils.events.list.invalidate(); toast.success("Event submitted for approval."); setEditorOpen(false); }, onError: error => toast.error(error.message) });
   const pinEvent = trpc.dashboardPins.pinEvent.useMutation({ onSuccess: async () => { await utils.dashboardPins.list.invalidate(); toast.success("Event pinned to your dashboard."); }, onError: error => toast.error(error.message) });
   const removePin = trpc.dashboardPins.remove.useMutation({ onSuccess: async () => { await utils.dashboardPins.list.invalidate(); toast.success("Event removed from your dashboard."); }, onError: error => toast.error(error.message) });
 
@@ -117,7 +118,11 @@ export default function Events() {
       status: form.status,
     };
     if (editingId) update.mutate({ id: editingId, values });
-    else create.mutate(values);
+    else if (isAdmin) create.mutate(values);
+    else {
+      const { status: _status, ...submissionValues } = values;
+      submitForApproval.mutate(submissionValues);
+    }
   }
 
   return (
@@ -127,7 +132,7 @@ export default function Events() {
         title="Events"
         description="Browse company meetings, celebrations, learning sessions, and other Welfare Pride events."
         icon={CalendarDays}
-        actions={<div className="flex flex-wrap gap-2"><div className="flex rounded-lg border border-border bg-white p-1"><Button variant={view === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setView("list")}><List className="mr-1.5 h-4 w-4" />List</Button><Button variant={view === "month" ? "secondary" : "ghost"} size="sm" onClick={() => setView("month")}><CalendarRange className="mr-1.5 h-4 w-4" />Calendar</Button></div>{isAdmin ? <Button className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" onClick={() => openEditor()}><Plus className="mr-2 h-4 w-4" />New event</Button> : null}</div>}
+        actions={<div className="flex flex-wrap gap-2"><div className="flex rounded-lg border border-border bg-white p-1"><Button variant={view === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setView("list")}><List className="mr-1.5 h-4 w-4" />List</Button><Button variant={view === "month" ? "secondary" : "ghost"} size="sm" onClick={() => setView("month")}><CalendarRange className="mr-1.5 h-4 w-4" />Calendar</Button></div><Button className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90" onClick={() => openEditor()}><Plus className="mr-2 h-4 w-4" />{isAdmin ? "New event" : "Submit event"}</Button></div>}
       />
 
       {(published.error || adminList.error) ? <Alert variant="destructive"><ShieldAlert className="h-4 w-4" /><AlertTitle>Events could not be loaded</AlertTitle><AlertDescription>{published.error?.message || adminList.error?.message}</AlertDescription></Alert> : null}
@@ -161,11 +166,11 @@ export default function Events() {
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? "Edit event" : "Create event"}</DialogTitle><DialogDescription>Publish a Welfare Pride company event with in-person or online details.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Edit event" : isAdmin ? "Create event" : "Submit event"}</DialogTitle><DialogDescription>{isAdmin ? "Publish a Welfare Pride company event with in-person or online details." : "Your event will be reviewed by an administrator or Intranet Portal Manager before publishing."}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2"><Label>Title</Label><Input value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Category</Label><Input value={form.category} onChange={event => setForm(current => ({ ...current, category: event.target.value }))} /></div>
-            <div className="space-y-2"><Label>Status</Label><select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as EventForm["status"] }))} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="draft">Draft</option><option value="published">Published</option><option value="cancelled">Cancelled</option><option value="archived">Archived</option></select></div>
+            {isAdmin ? <div className="space-y-2"><Label>Status</Label><select value={form.status} onChange={event => setForm(current => ({ ...current, status: event.target.value as EventForm["status"] }))} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="draft">Draft</option><option value="pending_approval">Pending approval</option><option value="published">Published</option><option value="declined">Declined</option><option value="cancelled">Cancelled</option><option value="archived">Archived</option></select></div> : <div className="rounded-xl border border-[#D58240]/25 bg-[#D58240]/5 p-3 text-sm text-[#7A431F]">Submission status: pending approval</div>}
             <div className="space-y-2 sm:col-span-2"><Label>Description</Label><Textarea rows={5} value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Starts</Label><Input type="datetime-local" value={form.startAt} onChange={event => setForm(current => ({ ...current, startAt: event.target.value }))} /></div>
             <div className="space-y-2"><Label>Ends</Label><Input type="datetime-local" value={form.endAt} onChange={event => setForm(current => ({ ...current, endAt: event.target.value }))} /></div>
@@ -173,7 +178,7 @@ export default function Events() {
             <div className="space-y-2"><Label>Online meeting URL</Label><Input type="url" value={form.meetingUrl} onChange={event => setForm(current => ({ ...current, meetingUrl: event.target.value }))} /></div>
             <label className="flex items-center gap-2 sm:col-span-2"><Checkbox checked={form.isAllDay} onCheckedChange={checked => setForm(current => ({ ...current, isAllDay: checked === true }))} /><span className="text-sm font-medium">All-day event</span></label>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={submit} disabled={!form.title || !form.startAt || !form.endAt || create.isPending || update.isPending} className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90">Save event</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={submit} disabled={!form.title || !form.startAt || !form.endAt || create.isPending || update.isPending || submitForApproval.isPending} className="bg-[#5A92C9] text-white hover:bg-[#5A92C9]/90">{isAdmin || editingId ? "Save event" : "Submit for approval"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

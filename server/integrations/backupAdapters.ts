@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { BlobServiceClient } from "@azure/storage-blob";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -10,9 +12,10 @@ import {
 import type { BackupDestination } from "../../drizzle/schema";
 import type { BackupProvider, ConnectionDiagnosticResult } from "../../shared/domain";
 import * as db from "../db";
-import { decryptJson } from "../security/encryption";
+import { decryptJson, encryptJson } from "../security/encryption";
 import { getMicrosoftApplicationToken } from "./microsoftGraph";
 import type { BackupAdapter, BackupPublicConfig, BackupSecrets } from "./contracts";
+import { backupScopeLabel, normalizeLocalRetentionDays } from "../backups/backupPolicy";
 
 type StoredArtifact = { reference: string; body: Buffer };
 
@@ -43,6 +46,32 @@ function normalizePath(value?: string) {
 function sanitizedError(error: unknown) {
   const message = error instanceof Error ? error.message : "Connection failed";
   return message.replace(/(secret|token|password|key)=([^&\s]+)/gi, "$1=[redacted]").slice(0, 800);
+}
+
+function localBackupDirectory() { return process.env.BACKUP_LOCAL_DIR || path.join(process.cwd(), "data", "backups"); }
+function safeLocalArtifactName(name: string) { return path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_"); }
+
+async function writeLocalArtifact(name: string, body: Buffer) {
+  const directory = localBackupDirectory();
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const safeName = safeLocalArtifactName(name);
+  await writeFile(path.join(directory, safeName), body, { mode: 0o600 });
+  return safeName;
+}
+
+async function purgeExpiredLocalArtifacts(destination: BackupDestination) {
+  const retentionDays = normalizeLocalRetentionDays(destination.localRetentionDays);
+  const expired = await db.listExpiredLocalBackupRuns(destination.id, new Date(Date.now() - retentionDays * 86400_000));
+  for (const run of expired) {
+    if (!run.localArtifactPath) continue;
+    await unlink(path.join(localBackupDirectory(), safeLocalArtifactName(run.localArtifactPath))).catch(() => undefined);
+    await db.updateBackupRun(run.id, { localArtifactPath: null });
+  }
+}
+
+export async function readLocalBackupArtifact(run: NonNullable<Awaited<ReturnType<typeof db.getBackupRunById>>>) {
+  if (!run.localArtifactPath) throw new Error("A local downloadable copy is no longer retained for this backup run.");
+  return readFile(path.join(localBackupDirectory(), safeLocalArtifactName(run.localArtifactPath)));
 }
 
 function diagnostic(
@@ -279,10 +308,11 @@ export async function testBackupDestination(destination: BackupDestination) {
 }
 
 export async function executeBackupRun(destination: BackupDestination, runType: "dry_run" | "backup", triggeredByUserId?: number | null) {
-  const artifactName = `welfare-pride-${runType}-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(4).toString("hex")}.json`;
-  const body = Buffer.from(JSON.stringify({ schemaVersion: 1, brand: "Welfare Pride", destination: { provider: destination.provider, displayName: destination.displayName }, runType, generatedAt: new Date().toISOString(), verificationNonce: randomBytes(16).toString("hex") }, null, 2));
+  const artifactName = `welfare-pride-${destination.backupScope}-${runType}-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(4).toString("hex")}.wpbackup.json`;
+  const snapshot = await db.buildBackupSnapshot(destination.backupScope);
+  const body = Buffer.from(encryptJson({ ...snapshot, brand: "Welfare Pride", destination: { provider: destination.provider, displayName: destination.displayName }, runType, verificationNonce: randomBytes(16).toString("hex") }));
   const checksumSha256 = checksum(body);
-  const runId = await db.createBackupRun({ destinationId: destination.id, runType, status: "running", artifactName, checksumSha256, byteSize: body.byteLength, triggeredByUserId: triggeredByUserId ?? null });
+  const runId = await db.createBackupRun({ destinationId: destination.id, runType, status: "running", artifactName, backupScope: destination.backupScope, checksumSha256, byteSize: body.byteLength, triggeredByUserId: triggeredByUserId ?? null });
   await db.appendOperationAuditEvent({ entityType: "backup_run", entityId: runId, eventType: "run_started", status: "running", message: `${runType === "dry_run" ? "Dry run" : "Backup manifest"} started for ${destination.displayName}.`, metadataJson: JSON.stringify({ destinationId: destination.id, provider: destination.provider, artifactName, checksumSha256 }), actorUserId: triggeredByUserId ?? null });
   try {
     const adapter = createBackupAdapter(destination);
@@ -294,9 +324,11 @@ export async function executeBackupRun(destination: BackupDestination, runType: 
     } else {
       const reference = await adapter.putArtifact(artifactName, body);
       const downloaded = await adapter.readArtifact(artifactName);
-      if (checksum(downloaded.body) !== checksumSha256) throw new Error("Retained backup manifest checksum verification failed");
-      await db.updateBackupRun(runId, { status: "succeeded", message: `Backup manifest retained at ${reference}. This control-plane artifact validates destination writes and restore verification; bulk source-file transfer requires a dedicated worker.`, completedAt: new Date() });
-      await db.appendOperationAuditEvent({ entityType: "backup_run", entityId: runId, eventType: "backup_manifest_retained", status: "succeeded", message: `Checksum-verified backup manifest retained at ${reference}.`, metadataJson: JSON.stringify({ destinationId: destination.id, provider: destination.provider, artifactName, checksumSha256, byteSize: body.byteLength }), actorUserId: triggeredByUserId ?? null });
+      if (checksum(downloaded.body) !== checksumSha256) throw new Error("Retained backup snapshot checksum verification failed");
+      const localArtifactPath = await writeLocalArtifact(artifactName, body);
+      await db.updateBackupRun(runId, { status: "succeeded", localArtifactPath, message: `Encrypted ${backupScopeLabel(destination.backupScope)} snapshot checksum-verified at ${reference}; a locally retained encrypted copy is available until the ${normalizeLocalRetentionDays(destination.localRetentionDays)}-day policy expires.`, completedAt: new Date() });
+      await purgeExpiredLocalArtifacts(destination);
+      await db.appendOperationAuditEvent({ entityType: "backup_run", entityId: runId, eventType: "encrypted_backup_retained", status: "succeeded", message: `Encrypted ${destination.backupScope} snapshot checksum-verified at ${reference}.`, metadataJson: JSON.stringify({ destinationId: destination.id, provider: destination.provider, artifactName, checksumSha256, byteSize: body.byteLength, localRetentionDays: destination.localRetentionDays }), actorUserId: triggeredByUserId ?? null });
     }
   } catch (error) {
     await db.updateBackupRun(runId, { status: "failed", message: sanitizedError(error), completedAt: new Date() });

@@ -39,7 +39,7 @@ export default function People() {
   const [department, setDepartment] = useState("all");
   const [selected, setSelected] = useState<DirectoryProfile | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState({ displayName: "", jobTitle: "", department: "", officeLocation: "", bio: "", phone: "" });
+  const [form, setForm] = useState({ displayName: "", jobTitle: "", department: "", officeLocation: "", bio: "", phone: "", birthdayMonth: "", birthdayDay: "", birthdayVisible: false });
   const deepLinkedProfileId = useMemo(() => {
     if (typeof window === "undefined") return null;
     const value = Number(new URLSearchParams(window.location.search).get("employee"));
@@ -118,6 +118,9 @@ export default function People() {
       officeLocation: profile.officeLocation || "",
       bio: profile.bio || "",
       phone: profile.phone || "",
+      birthdayMonth: profile.birthdayMonth ? String(profile.birthdayMonth) : "",
+      birthdayDay: profile.birthdayDay ? String(profile.birthdayDay) : "",
+      birthdayVisible: Boolean(profile.birthdayVisible),
     });
     setEditOpen(true);
   }
@@ -152,9 +155,12 @@ export default function People() {
         officeLocation: form.officeLocation || null,
         bio: form.bio || null,
         phone: form.phone || null,
+        birthdayMonth: form.birthdayMonth ? Number(form.birthdayMonth) : null,
+        birthdayDay: form.birthdayDay ? Number(form.birthdayDay) : null,
+        birthdayVisible: form.birthdayVisible,
       });
     } else {
-      updateMe.mutate({ bio: form.bio || null, phone: form.phone || null });
+      updateMe.mutate({ bio: form.bio || null, phone: form.phone || null, birthdayVisible: form.birthdayVisible });
     }
   }
 
@@ -296,6 +302,9 @@ export default function People() {
             <div className="space-y-2"><Label htmlFor="profile-department">Department</Label><Input id="profile-department" value={form.department} disabled={user?.role !== "admin"} onChange={event => setForm(current => ({ ...current, department: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="profile-office">Office location</Label><Input id="profile-office" value={form.officeLocation} disabled={user?.role !== "admin"} onChange={event => setForm(current => ({ ...current, officeLocation: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="profile-phone">Phone</Label><Input id="profile-phone" value={form.phone} onChange={event => setForm(current => ({ ...current, phone: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="profile-birthday-month">Birthday month</Label><select id="profile-birthday-month" value={form.birthdayMonth} disabled={user?.role !== "admin"} onChange={event => setForm(current => ({ ...current, birthdayMonth: event.target.value }))} className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Not set</option>{["January","February","March","April","May","June","July","August","September","October","November","December"].map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></div>
+            <div className="space-y-2"><Label htmlFor="profile-birthday-day">Birthday day</Label><Input id="profile-birthday-day" type="number" min={1} max={31} value={form.birthdayDay} disabled={user?.role !== "admin"} onChange={event => setForm(current => ({ ...current, birthdayDay: event.target.value }))} /></div>
+            <label className="flex items-center justify-between rounded-xl border border-border px-4 py-3 sm:col-span-2"><span><span className="block text-sm font-medium">Show my birthday in the employee calendar</span><span className="text-xs text-muted-foreground">Only month and day are shared; birth year remains private.</span></span><input type="checkbox" checked={form.birthdayVisible} onChange={event => setForm(current => ({ ...current, birthdayVisible: event.target.checked }))} className="h-4 w-4 accent-[#5A92C9]" /></label>
             <div className="space-y-2 sm:col-span-2"><Label htmlFor="profile-bio">Biography</Label><Textarea id="profile-bio" value={form.bio} rows={6} maxLength={3000} onChange={event => setForm(current => ({ ...current, bio: event.target.value }))} /><p className="text-right text-xs text-muted-foreground">{form.bio.length}/3000</p></div>
           </div>
           <DialogFooter>
