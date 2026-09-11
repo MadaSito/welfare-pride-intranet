@@ -165,3 +165,7 @@
 - [x] Add a customizable birthday-congratulation Email Center template and safe scheduled dispatch for employee birthday opt-ins.
 - [x] Add a 30-day System Audit Center visual dashboard for frequent administrative actions and configuration changes with accessible chart drill-through.
 - [x] Add regression coverage, isolated acceptance validation, and operator documentation for the operations enhancement.
+- [x] Add an Email Center preview action so administrators can review a rendered birthday-congratulation email before it is delivered.
+- [x] Add a management-ready PDF export for 30-day System Audit Center charts and underlying action/configuration summaries.
+- [x] Add administrator-managed birthday dispatch UTC time and IANA timezone settings with validated daily scheduling behavior.
+- [x] Add regression coverage, isolated acceptance validation, and operator documentation for email previews, PDF reporting, and birthday scheduling settings.

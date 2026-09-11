@@ -2,6 +2,7 @@ import { z } from "zod";
 import * as db from "../db";
 import { permissionProcedure, router } from "../_core/trpc";
 import { sendMicrosoftGraphMail } from "../integrations/microsoftGraphMail";
+import { previewBirthdayTemplate } from "../email/birthdayTemplate";
 
 const eventType = z.enum(["announcement_published", "event_published", "birthday_congratulation", "manual"]);
 const emailAddress = z.string().trim().email().max(320);
@@ -36,6 +37,7 @@ export const emailCenterRouter = router({
     await db.appendOperationAuditEvent({ entityType: "email_template", entityId: template.id, eventType: "template_saved", status: "succeeded", message: `Email template ${input.name} saved.`, metadataJson: JSON.stringify({ eventType: input.eventType, active: input.isActive }), actorUserId: ctx.user.id });
     return template;
   }),
+  previewBirthday: permissionProcedure("manage_email").input(z.object({ subjectTemplate: z.string().trim().min(1).max(500), bodyTemplate: z.string().trim().min(1).max(40_000), displayName: z.string().trim().min(1).max(200).default("Welfare Pride Employee") })).mutation(async ({ input }) => ({ ...previewBirthdayTemplate(input), isPreview: true as const })),
   sendManual: permissionProcedure("manage_email").input(z.object({ templateId: z.number().int().positive().optional(), subject: z.string().trim().min(1).max(500), bodyText: z.string().trim().min(1).max(40_000), recipients: z.array(emailAddress).min(1).max(200), bccEmail: emailAddress.optional() })).mutation(async ({ ctx, input }) => deliver({ templateId: input.templateId ?? null, eventType: "manual", subject: input.subject, bodyText: input.bodyText, recipients: input.recipients, bccEmail: input.bccEmail || null, actorUserId: ctx.user.id })),
   resend: permissionProcedure("manage_email").input(z.object({ deliveryId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     const source = await db.getEmailDeliveryById(input.deliveryId);

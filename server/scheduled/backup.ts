@@ -4,6 +4,7 @@ import * as db from "../db";
 import { executeBackupRun } from "../integrations/backupAdapters";
 import { isCronDue, isValidCronExpression } from "./cron";
 import { dispatchBirthdayCongratulations } from "../email/birthdayDispatch";
+import { isBirthdayDispatchDue, parseBirthdayDispatchSettings } from "../email/birthdaySchedule";
 
 function cronAuthorized(req: Request) {
   const expected = process.env.CRON_SECRET || "";
@@ -39,10 +40,14 @@ export async function scheduledBackupHandler(req: Request, res: Response) {
     }
   }
 
-  const configuredBirthdayHour = Number.parseInt(process.env.BIRTHDAY_DISPATCH_HOUR_UTC || "9", 10);
-  const configuredBirthdayMinute = Number.parseInt(process.env.BIRTHDAY_DISPATCH_MINUTE_UTC || "0", 10);
-  const birthdayDispatchHour = Number.isInteger(configuredBirthdayHour) && configuredBirthdayHour >= 0 && configuredBirthdayHour <= 23 ? configuredBirthdayHour : 9;
-  const birthdayDispatchMinute = Number.isInteger(configuredBirthdayMinute) && configuredBirthdayMinute >= 0 && configuredBirthdayMinute <= 59 ? configuredBirthdayMinute : 0;
-  const birthdayResult = now.getUTCMinutes() === birthdayDispatchMinute && now.getUTCHours() === birthdayDispatchHour ? await dispatchBirthdayCongratulations(now) : { status: "outside-window", processed: 0, sent: 0 };
+  const savedBirthdayDispatch = await db.getIntegrationSettingByProvider("birthday_dispatch");
+  let savedBirthdayConfig: unknown;
+  try { savedBirthdayConfig = savedBirthdayDispatch?.publicConfigJson ? JSON.parse(savedBirthdayDispatch.publicConfigJson) : undefined; } catch { savedBirthdayConfig = undefined; }
+  const birthdaySettings = parseBirthdayDispatchSettings(savedBirthdayConfig);
+  const birthdayResult = !birthdaySettings.enabled
+    ? { status: "disabled" as const, processed: 0, sent: 0 }
+    : isBirthdayDispatchDue(now, birthdaySettings)
+      ? await dispatchBirthdayCongratulations(now, birthdaySettings.timeZone)
+      : { status: "outside-window" as const, processed: 0, sent: 0 };
   return res.json({ ok: true, checkedAt: now.toISOString(), results, birthdayResult });
 }

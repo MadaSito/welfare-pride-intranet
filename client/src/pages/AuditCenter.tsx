@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { BarChart3, ClipboardList, Search, ShieldAlert } from "lucide-react";
+import { BarChart3, ClipboardList, Download, Loader2, Search, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 type AnalyticsRow = { eventType: string; label: string; count: number };
 const chartColors = ["#5A92C9", "#D58240", "#78B5A7", "#8B6FB5", "#6F9BCE", "#D7A85C", "#5B9E8D", "#A6735D"];
@@ -27,9 +28,18 @@ export default function AuditCenter() {
   const [query, setQuery] = useState(""); const [entityType, setEntityType] = useState(""); const [eventType, setEventType] = useState(""); const [status, setStatus] = useState("");
   const filters = useMemo(() => ({ query: query || undefined, entityType: entityType || undefined, eventType: eventType || undefined, status: status || undefined, limit: 300 }), [entityType, eventType, query, status]);
   const audit = trpc.auditCenter.list.useQuery(filters); const analytics = trpc.auditCenter.analytics.useQuery();
+  const recordPdfExport = trpc.auditCenter.recordPdfExport.useMutation();
   const entityTypes = Array.from(new Set((audit.data || []).map(item => item.entityType))).sort(); const eventTypes = Array.from(new Set([...(audit.data || []).map(item => item.eventType), ...(analytics.data?.administrativeActions || []).map(item => item.eventType)])).sort(); const statuses = Array.from(new Set((audit.data || []).map(item => item.status))).sort();
   const applyChartFilter = (selectedEventType: string) => { setEventType(selectedEventType); document.getElementById("audit-timeline")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-  return <div className="space-y-7"><PageHeader eyebrow="Accountability" title="System Audit Center" description="Investigate retained changes across portal resources, configuration, users, backups, email, approvals, and security operations." icon={ClipboardList} />
+  const exportPdf = async () => {
+    if (!analytics.data || audit.isLoading) return;
+    try {
+      await recordPdfExport.mutateAsync({ recordCount: audit.data?.length || 0, filters: { query: query || undefined, entityType: entityType || undefined, eventType: eventType || undefined, status: status || undefined } });
+      const { downloadAuditManagementReport } = await import("@/lib/auditReportPdf");
+      downloadAuditManagementReport({ windowDays: analytics.data.windowDays, administrativeActions: analytics.data.administrativeActions, configurationChanges: analytics.data.configurationChanges, records: audit.data || [], filters: { query: query || undefined, entityType: entityType || undefined, eventType: eventType || undefined, status: status || undefined } });
+    } catch (error) { toast.error(error instanceof Error ? error.message : "The Audit Center report could not be exported."); }
+  };
+  return <div className="space-y-7"><PageHeader eyebrow="Accountability" title="System Audit Center" description="Investigate retained changes across portal resources, configuration, users, backups, email, approvals, and security operations." icon={ClipboardList} actions={<Button variant="outline" onClick={exportPdf} disabled={!analytics.data || audit.isLoading || recordPdfExport.isPending}>{recordPdfExport.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export 30-day PDF</Button>} />
     <Alert className="border-[#5A92C9]/20 bg-[#5A92C9]/5"><ClipboardList className="h-4 w-4 text-[#5A92C9]" /><AlertTitle>Where to find this center</AlertTitle><AlertDescription>Authorized administrators can open it from <strong>Administration → Audit Center</strong>. Assigned Intranet Portal Managers see it under <strong>Management → Audit Center</strong>.</AlertDescription></Alert>
     {audit.error || analytics.error ? <Alert variant="destructive"><ShieldAlert className="h-4 w-4" /><AlertTitle>Audit records unavailable</AlertTitle><AlertDescription>{audit.error?.message || analytics.error?.message}</AlertDescription></Alert> : null}
     <div className="grid gap-6 xl:grid-cols-2"><AuditChart title="Frequent administrative actions" description={`Most common actions over the last ${analytics.data?.windowDays || 30} days. Select a result to filter the timeline.`} data={analytics.data?.administrativeActions || []} onSelect={applyChartFilter} /><AuditChart title="Configuration changes" description="Changes to resources, roles, integrations, email templates, backup policies, and account lifecycle settings." data={analytics.data?.configurationChanges || []} onSelect={applyChartFilter} /></div>

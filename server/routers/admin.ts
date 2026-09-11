@@ -9,6 +9,7 @@ import { testAiProviderConnection, validateAiBaseUrl } from "../integrations/aiP
 import { discoverSharePointSite } from "../integrations/microsoftGraph";
 import type { AiPublicConfig, AiSecrets, BackupPublicConfig, BackupSecrets, MicrosoftPublicConfig, MicrosoftSecrets } from "../integrations/contracts";
 import { isValidCronExpression } from "../scheduled/cron";
+import { getDefaultBirthdayDispatchSettings, isValidIanaTimeZone } from "../email/birthdaySchedule";
 
 const connectionStatus = z.enum(["unconfigured", "configured", "connected", "degraded", "error"]);
 const backupProvider = z.enum(["sharepoint", "onedrive", "google_drive", "aws_s3", "wasabi", "backblaze_b2", "azure_blob"]);
@@ -30,7 +31,7 @@ async function persistDiagnostic(result: { provider: string; target: string; sta
 }
 
 export const adminSettingsRouter = router({
-  overview: adminProcedure.query(async () => ({ microsoft: publicIntegration(await db.getIntegrationSettingByProvider("microsoft_entra")), mail: publicIntegration(await db.getIntegrationSettingByProvider("microsoft_graph_mail")), ai: publicIntegration(await db.getIntegrationSettingByProvider("ai_assistant")), diagnostics: await db.listConnectionDiagnostics(80) })),
+  overview: adminProcedure.query(async () => ({ microsoft: publicIntegration(await db.getIntegrationSettingByProvider("microsoft_entra")), mail: publicIntegration(await db.getIntegrationSettingByProvider("microsoft_graph_mail")), birthdayDispatch: publicIntegration(await db.getIntegrationSettingByProvider("birthday_dispatch")), ai: publicIntegration(await db.getIntegrationSettingByProvider("ai_assistant")), diagnostics: await db.listConnectionDiagnostics(80) })),
   saveMicrosoft: adminProcedure.input(z.object({
     tenantId: z.string().trim().min(1).max(128), clientId: z.string().trim().min(1).max(128), clientSecret: optionalSecret,
     authorityUrl: optionalText, redirectUri: optionalText, graphBaseUrl: optionalText, graphScopes: optionalText,
@@ -86,6 +87,12 @@ export const adminSettingsRouter = router({
     await db.upsertIntegrationSetting({ provider: "microsoft_graph_mail", displayName: "Microsoft Graph Mail", publicConfigJson: JSON.stringify({ senderMailbox: input.senderMailbox || null, bccEmail: input.bccEmail || null }), secretMaskJson: "{}", status: configured ? "configured" : "unconfigured", updatedByUserId: ctx.user.id });
     await db.appendOperationAuditEvent({ entityType: "integration_setting", entityId: 0, eventType: "graph_mail_settings_saved", status: "succeeded", message: "Microsoft Graph Mail settings were updated.", metadataJson: JSON.stringify({ senderConfigured: configured, bccConfigured: Boolean(input.bccEmail) }), actorUserId: ctx.user.id });
     return publicIntegration(await db.getIntegrationSettingByProvider("microsoft_graph_mail"));
+  }),
+  saveBirthdayDispatch: adminProcedure.input(z.object({ enabled: z.boolean(), hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59), timeZone: z.string().trim().min(1).max(128).refine(isValidIanaTimeZone, "Use a valid IANA timezone such as America/New_York.") })).mutation(async ({ ctx, input }) => {
+    const config = { enabled: input.enabled, hour: input.hour, minute: input.minute, timeZone: input.timeZone };
+    await db.upsertIntegrationSetting({ provider: "birthday_dispatch", displayName: "Birthday congratulations schedule", publicConfigJson: JSON.stringify(config), secretMaskJson: "{}", status: input.enabled ? "configured" : "unconfigured", updatedByUserId: ctx.user.id });
+    await db.appendOperationAuditEvent({ entityType: "birthday_dispatch", entityId: 0, eventType: "birthday_dispatch_settings_saved", status: "succeeded", message: "Birthday congratulations dispatch settings were updated.", metadataJson: JSON.stringify(config), actorUserId: ctx.user.id });
+    return { config, defaults: getDefaultBirthdayDispatchSettings() };
   }),
 });
 

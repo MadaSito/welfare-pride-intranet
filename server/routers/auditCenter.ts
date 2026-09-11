@@ -5,4 +5,8 @@ import { permissionProcedure, router } from "../_core/trpc";
 export const auditCenterRouter = router({
   list: permissionProcedure("view_audit").input(z.object({ entityType: z.string().trim().max(80).optional(), eventType: z.string().trim().max(120).optional(), status: z.string().trim().max(80).optional(), query: z.string().trim().max(120).optional(), from: z.coerce.date().optional(), to: z.coerce.date().optional(), limit: z.number().int().min(1).max(500).optional() })).query(async ({ input }) => db.searchOperationAuditEvents(input)),
   analytics: permissionProcedure("view_audit").query(async () => db.getOperationAuditAnalytics(30)),
+  recordPdfExport: permissionProcedure("view_audit").input(z.object({ recordCount: z.number().int().min(0).max(500), filters: z.object({ query: z.string().trim().max(120).optional(), entityType: z.string().trim().max(80).optional(), eventType: z.string().trim().max(120).optional(), status: z.string().trim().max(80).optional() }) })).mutation(async ({ ctx, input }) => {
+    await db.appendOperationAuditEvent({ entityType: "audit_report", entityId: 0, eventType: "audit_pdf_exported", status: "succeeded", message: "A 30-day System Audit Center management report was exported.", metadataJson: JSON.stringify({ recordCount: input.recordCount, filters: input.filters }), actorUserId: ctx.user.id });
+    return { success: true } as const;
+  }),
 });
