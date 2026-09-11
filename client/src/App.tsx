@@ -24,6 +24,7 @@ import RestoreHistory from "./pages/RestoreHistory";
 import AccessPages from "./pages/AccessPages";
 import BusinessManagement from "./pages/BusinessManagement";
 import CustomPortalPage from "./pages/CustomPortalPage";
+import CustomCalendarPage from "./pages/CustomCalendarPage";
 import { RequireAdmin } from "./components/RequireAdmin";
 import SecurityCenter from "./pages/SecurityCenter";
 import RoleManagement from "./pages/RoleManagement";
@@ -40,6 +41,7 @@ function Router() {
         <Route path="/people/me" component={People} />
         <Route path="/organization" component={Organization} />
         <Route path="/calendars" component={Calendars} />
+        <Route path="/calendars/:slug" component={CustomCalendarPage} />
         <Route path="/announcements" component={Announcements} />
         <Route path="/events" component={Events} />
         <Route path="/hr" component={HumanResources} />

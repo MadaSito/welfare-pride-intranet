@@ -20,6 +20,7 @@ const dbMock = {
   savePortalResource: vi.fn(),
   replacePortalResourceAssignments: vi.fn(),
   appendAccessControlAuditEvent: vi.fn(),
+  appendOperationAuditEvent: vi.fn(),
   deleteCustomPortalResource: vi.fn(),
   createPortalAccessRequest: vi.fn(),
 };
@@ -46,6 +47,12 @@ describe("portal access controls", () => {
     dbMock.getPortalResourceByPath.mockResolvedValue({ id: 42, resourceKey: "page:business-planning", resourceType: "page", isPublished: true });
     dbMock.canAccessPortalResource.mockResolvedValue(false);
     await expect(portalAccessRouter.createCaller(context()).customPage({ slug: "business-planning" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("fails closed when a user calls a restricted custom calendar directly", async () => {
+    dbMock.getPortalResourceByPath.mockResolvedValue({ id: 43, resourceKey: "calendar:pa-health-wellness-calendar", resourceType: "calendar", isPublished: true });
+    dbMock.canAccessPortalResource.mockResolvedValue(false);
+    await expect(portalAccessRouter.createCaller(context()).calendarPage({ slug: "pa-health-wellness-calendar" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("returns only server-filtered navigation resources while preserving restricted metadata for authorized UI markers", async () => {
@@ -83,6 +90,15 @@ describe("portal access controls", () => {
     await expect(portalAccessRouter.createCaller(context("admin")).saveResource({
       resourceType: "module", resourceKey: "module:malformed", label: "Malformed", navigationGroup: "Workplace", iconKey: "file-text", body: null, accessMode: "all_authenticated", isPublished: true, sortOrder: 1, assignments: [],
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("allows an administrator to create a custom calendar with a server-derived calendar route", async () => {
+    dbMock.listPortalResources.mockResolvedValue([]);
+    dbMock.savePortalResource.mockResolvedValue({ id: 44, resourceKey: "calendar:wellness-events", resourceType: "calendar", path: "/calendars/wellness-events", calendarView: "events_only" });
+    await expect(portalAccessRouter.createCaller(context("admin")).saveResource({
+      resourceType: "calendar", slug: "wellness-events", label: "Wellness Events", navigationGroup: "PA Health and Wellness", iconKey: "calendar-days", body: null, calendarView: "events_only", accessMode: "all_authenticated", isPublished: true, sortOrder: 30, assignments: [],
+    })).resolves.toMatchObject({ resourceKey: "calendar:wellness-events", path: "/calendars/wellness-events", calendarView: "events_only" });
+    expect(dbMock.savePortalResource).toHaveBeenCalledWith(expect.objectContaining({ resourceKey: "calendar:wellness-events", path: "/calendars/wellness-events", calendarView: "events_only" }));
   });
 
   it("accepts an access request only for a restricted resource that the caller cannot already open", async () => {

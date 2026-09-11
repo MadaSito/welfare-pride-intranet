@@ -169,3 +169,6 @@
 - [x] Add a management-ready PDF export for 30-day System Audit Center charts and underlying action/configuration summaries.
 - [x] Add administrator-managed birthday dispatch UTC time and IANA timezone settings with validated daily scheduling behavior.
 - [x] Add regression coverage, isolated acceptance validation, and operator documentation for email previews, PDF reporting, and birthday scheduling settings.
+- [x] Add a PA Health and Wellness navigation section with one editable page and two calendar pages.
+- [x] Add a Jefferson Health Partners Call Center navigation section with two editable pages.
+- [x] Verify the new sections, page editing, ordering, and calendar views with regression coverage and authenticated acceptance.

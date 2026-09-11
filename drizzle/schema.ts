@@ -202,13 +202,14 @@ export const portalResources = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     resourceKey: varchar("resourceKey", { length: 140 }).notNull(),
-    resourceType: mysqlEnum("resourceType", ["module", "page"]).notNull(),
+    resourceType: mysqlEnum("resourceType", ["module", "page", "calendar"]).notNull(),
     label: varchar("label", { length: 160 }).notNull(),
     path: varchar("path", { length: 220 }).notNull(),
     navigationGroup: varchar("navigationGroup", { length: 120 }).default("Workplace").notNull(),
     navigationGroupOrder: int("navigationGroupOrder").default(0).notNull(),
     iconKey: varchar("iconKey", { length: 64 }).default("file-text").notNull(),
     body: text("body"),
+    calendarView: mysqlEnum("calendarView", ["all", "events_only"]).default("all").notNull(),
     accessMode: mysqlEnum("accessMode", ["all_authenticated", "restricted"])
       .default("all_authenticated")
       .notNull(),

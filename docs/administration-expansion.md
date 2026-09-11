@@ -10,6 +10,10 @@ Graph Mail uses the configured application sender mailbox, application `Mail.Sen
 
 The Access & Pages screen lets administrators edit resource labels, navigation groups, custom page titles, page body content, access policy, and application-card action text. Reorder resources by drag and drop; keyboard reordering remains available as an accessible alternative. Changes are persisted server-side and recorded in the System Audit Center.
 
+### Health and Wellness and Call Center sections
+
+The portal includes a **PA Health and Wellness** section with an intentionally empty editable **Health & Wellness Resources** page, an all-dates **Health & Wellness Calendar**, and an events-only **Health & Wellness Events** calendar. It also includes a **Jefferson Health Partners Call Center** section with intentionally empty editable **Call Center Resources** and **Call Center Notes** pages. Administrators can rename these section headings and resources, edit page content, change calendar view mode, apply access policies, and reorder every item from **Administration → Access & Pages**.
+
 ## Roles and employee submissions
 
 The built-in **Intranet Portal Manager** role can manage content, resources, backups, email operations, content approval, and audit review without becoming a full administrator. Administrators can create additional roles and select granular permissions.

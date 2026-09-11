@@ -12,7 +12,7 @@ const assignmentInput = z.discriminatedUnion("subjectType", [
 
 const resourceInput = z.object({
   id: z.number().int().positive().optional(),
-  resourceType: z.enum(["module", "page"]),
+  resourceType: z.enum(["module", "page", "calendar"]),
   resourceKey: z.string().trim().min(1).max(140).optional(),
   slug: slug.optional(),
   label: z.string().trim().min(2).max(160),
@@ -20,6 +20,7 @@ const resourceInput = z.object({
   navigationGroupOrder: z.number().int().min(0).max(10_000).optional(),
   iconKey: z.string().trim().regex(/^[a-z0-9-]+$/).min(2).max(64),
   body: z.string().trim().max(20_000).nullable().optional(),
+  calendarView: z.enum(["all", "events_only"]).default("all"),
   accessMode: z.enum(["all_authenticated", "restricted"]),
   isPublished: z.boolean(),
   sortOrder: z.number().int().min(-10_000).max(10_000),
@@ -30,6 +31,11 @@ const accessRequestInput = z.object({ resourceKey: z.string().trim().min(1).max(
 function customPagePath(input: z.infer<typeof resourceInput>) {
   if (!input.slug) throw new TRPCError({ code: "BAD_REQUEST", message: "A page slug is required for custom pages." });
   return `/pages/${input.slug}`;
+}
+
+function customCalendarPath(input: z.infer<typeof resourceInput>) {
+  if (!input.slug) throw new TRPCError({ code: "BAD_REQUEST", message: "A page slug is required for calendar pages." });
+  return `/calendars/${input.slug}`;
 }
 
 export const portalAccessRouter = router({
@@ -64,6 +70,17 @@ export const portalAccessRouter = router({
     }
     if (!(await db.canAccessPortalResource({ resourceKey: resource.resourceKey, userId: ctx.user.id, role: ctx.user.role }))) {
       throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this page." });
+    }
+    return resource;
+  }),
+
+  calendarPage: protectedProcedure.input(z.object({ slug })).query(async ({ ctx, input }) => {
+    const resource = await db.getPortalResourceByPath(`/calendars/${input.slug}`);
+    if (!resource || resource.resourceType !== "calendar" || !resource.isPublished) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Calendar page not found." });
+    }
+    if (!(await db.canAccessPortalResource({ resourceKey: resource.resourceKey, userId: ctx.user.id, role: ctx.user.role }))) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this calendar page." });
     }
     return resource;
   }),
@@ -112,12 +129,12 @@ export const portalAccessRouter = router({
   }),
 
   saveResource: adminProcedure.input(resourceInput).mutation(async ({ ctx, input }) => {
-    if (!input.id && input.resourceType !== "page") {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "New portal resources must be custom pages; system modules are provisioned by the application." });
+    if (!input.id && input.resourceType === "module") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "New portal resources must be custom pages or calendar pages; system modules are provisioned by the application." });
     }
-    const resourceKey = input.resourceType === "page" ? `page:${input.slug}` : input.resourceKey;
+    const resourceKey = input.resourceType === "page" ? `page:${input.slug}` : input.resourceType === "calendar" ? `calendar:${input.slug}` : input.resourceKey;
     if (!resourceKey) throw new TRPCError({ code: "BAD_REQUEST", message: "A system module key is required." });
-    const path = input.resourceType === "page" ? customPagePath(input) : undefined;
+    const path = input.resourceType === "page" ? customPagePath(input) : input.resourceType === "calendar" ? customCalendarPath(input) : undefined;
     const existing = input.id ? (await db.listPortalResources(true)).find(resource => resource.id === input.id) : undefined;
     if (input.id && !existing) throw new TRPCError({ code: "NOT_FOUND", message: "Portal resource not found." });
     if (existing?.isSystem && input.resourceType !== "module") throw new TRPCError({ code: "BAD_REQUEST", message: "System modules cannot be converted into pages." });
@@ -139,6 +156,7 @@ export const portalAccessRouter = router({
       navigationGroupOrder: input.navigationGroupOrder,
       iconKey: input.iconKey,
       body: input.body ?? null,
+      calendarView: input.calendarView,
       accessMode: input.accessMode,
       isPublished: input.isPublished,
       sortOrder: input.sortOrder,

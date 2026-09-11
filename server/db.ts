@@ -1595,13 +1595,14 @@ export async function listVisiblePortalResources(input: { userId: number; role: 
 export async function savePortalResource(input: {
   id?: number;
   resourceKey: string;
-  resourceType: "module" | "page";
+  resourceType: "module" | "page" | "calendar";
   label: string;
   path: string;
   navigationGroup: string;
   navigationGroupOrder?: number;
   iconKey: string;
   body?: string | null;
+  calendarView?: "all" | "events_only";
   accessMode: PortalResourceAccessMode;
   isPublished: boolean;
   sortOrder: number;
@@ -1621,6 +1622,7 @@ export async function savePortalResource(input: {
       navigationGroupOrder: input.navigationGroupOrder ?? existing.navigationGroupOrder,
       iconKey: input.iconKey,
       body: input.body ?? null,
+      calendarView: input.calendarView ?? existing.calendarView,
       accessMode: input.accessMode,
       isPublished: input.isPublished,
       sortOrder: input.sortOrder,
@@ -1637,6 +1639,7 @@ export async function savePortalResource(input: {
     navigationGroupOrder: input.navigationGroupOrder ?? 0,
     iconKey: input.iconKey,
     body: input.body ?? null,
+    calendarView: input.calendarView ?? "all",
     accessMode: input.accessMode,
     isPublished: input.isPublished,
     sortOrder: input.sortOrder,

@@ -123,6 +123,31 @@ export const calendarsRouter = router({
         events: eventItems,
       };
     }),
+  pageOverview: protectedProcedure
+    .input(z.object({ slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).min(2).max(100), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ ctx, input }) => {
+      const resource = await db.getPortalResourceByPath(`/calendars/${input.slug}`);
+      if (!resource || resource.resourceType !== "calendar" || !resource.isPublished) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Calendar page not found." });
+      }
+      if (!(await db.canAccessPortalResource({ resourceKey: resource.resourceKey, userId: ctx.user.id, role: ctx.user.role }))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this calendar page." });
+      }
+      const [holidayItems, birthdays, eventItems, sharePointConfig] = await Promise.all([
+        resource.calendarView === "events_only" ? Promise.resolve([]) : db.listHolidays(input.from, input.to),
+        resource.calendarView === "events_only" ? Promise.resolve([]) : db.listBirthdayDisplays(),
+        db.listPublishedEvents(new Date(`${input.from}T00:00:00.000Z`), new Date(`${input.to}T23:59:59.999Z`)),
+        db.getIntegrationSettingByProvider("sharepoint"),
+      ]);
+      return {
+        resource,
+        status: sharePointConfig ? sharePointConfig.status : "unconfigured",
+        message: sharePointConfig ? undefined : "Connect SharePoint to synchronize the Welfare Pride holiday list.",
+        holidays: holidayItems,
+        birthdays,
+        events: eventItems,
+      };
+    }),
   syncHolidays: adminProcedure.mutation(async () => {
     try {
       return await synchronizeSharePointHolidays();
