@@ -160,3 +160,8 @@
 - [x] Add employee announcement and event submissions with administrator or Intranet Portal Manager approval workflow.
 - [x] Add a System Audit Center for searchable, immutable change records covering resources, configuration, user lifecycle, backups, mail, approvals, and security actions.
 - [x] Add migrations, automated regression coverage, isolated acceptance validation, and operator documentation for the administration expansion.
+- [x] Make the System Audit Center directly discoverable through clear administrator and Intranet Portal Manager navigation and access guidance.
+- [x] Complete the recommended production-readiness next steps: provider configuration readiness, role-permission policy guidance, and backup/retention operating controls without adding Microsoft credentials.
+- [x] Add a customizable birthday-congratulation Email Center template and safe scheduled dispatch for employee birthday opt-ins.
+- [x] Add a 30-day System Audit Center visual dashboard for frequent administrative actions and configuration changes with accessible chart drill-through.
+- [x] Add regression coverage, isolated acceptance validation, and operator documentation for the operations enhancement.

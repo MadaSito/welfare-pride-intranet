@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, like, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2";
+import { summarizeAuditAnalytics } from "./audit/auditAnalytics";
 import {
   employeeProfiles,
   announcements,
@@ -718,6 +719,14 @@ export async function searchOperationAuditEvents(input: { entityType?: string; e
   return db.select().from(operationAuditEvents).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(operationAuditEvents.createdAt)).limit(Math.min(Math.max(input.limit || 200, 1), 500));
 }
 
+export async function getOperationAuditAnalytics(days = 30) {
+  const boundedDays = Math.min(Math.max(days, 1), 30);
+  const to = new Date();
+  const from = new Date(to.getTime() - boundedDays * 24 * 60 * 60 * 1000);
+  const events = await searchOperationAuditEvents({ from, to, limit: 500 });
+  return { windowDays: boundedDays, from, to, ...summarizeAuditAnalytics(events) };
+}
+
 export async function upsertMicrosoftOauthSession(input: {
   userId: number;
   tenantId: string;
@@ -1231,7 +1240,7 @@ export async function getEmailTemplateById(id: number) {
   return (await db.select().from(emailTemplates).where(eq(emailTemplates.id, id)).limit(1))[0];
 }
 
-export async function saveEmailTemplate(input: { id?: number; name: string; eventType: "announcement_published" | "event_published" | "manual"; subjectTemplate: string; bodyTemplate: string; isActive: boolean; actorUserId: number }) {
+export async function saveEmailTemplate(input: { id?: number; name: string; eventType: "announcement_published" | "event_published" | "birthday_congratulation" | "manual"; subjectTemplate: string; bodyTemplate: string; isActive: boolean; actorUserId: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   if (input.id) {
@@ -1254,6 +1263,12 @@ export async function getEmailDeliveryById(id: number) {
   return (await db.select().from(emailDeliveries).where(eq(emailDeliveries.id, id)).limit(1))[0];
 }
 
+export async function getEmailDeliveryByKey(deliveryKey: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(emailDeliveries).where(eq(emailDeliveries.deliveryKey, deliveryKey)).limit(1))[0];
+}
+
 export async function createEmailDelivery(input: typeof emailDeliveries.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1273,6 +1288,13 @@ export async function listActiveEmployeeEmailAddresses() {
   if (!db) return [];
   const rows = await db.select({ email: employeeProfiles.email }).from(employeeProfiles).where(and(eq(employeeProfiles.isActive, true), sql`${employeeProfiles.email} IS NOT NULL`));
   return Array.from(new Set(rows.map(row => row.email?.trim().toLowerCase()).filter((email): email is string => Boolean(email))));
+}
+
+export async function listBirthdayEmailRecipients(month: number, day: number) {
+  const db = await getDb();
+  if (!db) return [] as Array<{ id: number; displayName: string; email: string }>;
+  const rows = await db.select({ id: employeeProfiles.id, displayName: employeeProfiles.displayName, email: employeeProfiles.email }).from(employeeProfiles).where(and(eq(employeeProfiles.isActive, true), eq(employeeProfiles.birthdayVisible, true), eq(employeeProfiles.birthdayMonth, month), eq(employeeProfiles.birthdayDay, day), sql`${employeeProfiles.email} IS NOT NULL`));
+  return rows.flatMap(row => row.email?.trim() ? [{ id: row.id, displayName: row.displayName, email: row.email.trim().toLowerCase() }] : []);
 }
 
 export async function listPublishedContentBlocks(pageKey: string) {

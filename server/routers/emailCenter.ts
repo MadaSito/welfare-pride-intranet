@@ -3,7 +3,7 @@ import * as db from "../db";
 import { permissionProcedure, router } from "../_core/trpc";
 import { sendMicrosoftGraphMail } from "../integrations/microsoftGraphMail";
 
-const eventType = z.enum(["announcement_published", "event_published", "manual"]);
+const eventType = z.enum(["announcement_published", "event_published", "birthday_congratulation", "manual"]);
 const emailAddress = z.string().trim().email().max(320);
 const templateInput = z.object({
   id: z.number().int().positive().optional(),
@@ -18,7 +18,7 @@ function normalizeRecipients(items: string[]) {
   return Array.from(new Set(items.map(item => item.trim().toLowerCase()).filter(item => z.string().email().safeParse(item).success))).slice(0, 200);
 }
 
-async function deliver(input: { templateId?: number | null; eventType: "announcement_published" | "event_published" | "manual"; subject: string; bodyText: string; recipients: string[]; bccEmail?: string | null; actorUserId: number; sourceDeliveryId?: number | null }) {
+async function deliver(input: { templateId?: number | null; eventType: "announcement_published" | "event_published" | "birthday_congratulation" | "manual"; subject: string; bodyText: string; recipients: string[]; bccEmail?: string | null; actorUserId: number; sourceDeliveryId?: number | null }) {
   const recipients = normalizeRecipients(input.recipients);
   const delivery = await db.createEmailDelivery({ templateId: input.templateId ?? null, eventType: input.eventType, subject: input.subject, bodyText: input.bodyText, recipientsJson: JSON.stringify(recipients), bccEmail: input.bccEmail || null, status: "queued", triggeredByUserId: input.actorUserId, sourceDeliveryId: input.sourceDeliveryId ?? null });
   if (!delivery) throw new Error("Email delivery record could not be created.");
@@ -42,6 +42,6 @@ export const emailCenterRouter = router({
     if (!source) throw new Error("Email delivery record not found.");
     let recipients: string[] = [];
     try { recipients = JSON.parse(source.recipientsJson) as string[]; } catch { throw new Error("Stored recipients could not be read safely."); }
-    return deliver({ templateId: source.templateId, eventType: source.eventType as "announcement_published" | "event_published" | "manual", subject: source.subject, bodyText: source.bodyText, recipients, bccEmail: source.bccEmail, actorUserId: ctx.user.id, sourceDeliveryId: source.id });
+    return deliver({ templateId: source.templateId, eventType: source.eventType as "announcement_published" | "event_published" | "birthday_congratulation" | "manual", subject: source.subject, bodyText: source.bodyText, recipients, bccEmail: source.bccEmail, actorUserId: ctx.user.id, sourceDeliveryId: source.id });
   }),
 });

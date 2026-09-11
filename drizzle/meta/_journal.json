@@ -190,6 +190,13 @@
       "when": 1789083394409,
       "tag": "0026_flawless_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1789085301855,
+      "tag": "0027_gifted_stingray",
+      "breakpoints": true
     }
   ]
 }

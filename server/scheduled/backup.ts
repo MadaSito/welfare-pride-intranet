@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import * as db from "../db";
 import { executeBackupRun } from "../integrations/backupAdapters";
 import { isCronDue, isValidCronExpression } from "./cron";
+import { dispatchBirthdayCongratulations } from "../email/birthdayDispatch";
 
 function cronAuthorized(req: Request) {
   const expected = process.env.CRON_SECRET || "";
@@ -38,5 +39,10 @@ export async function scheduledBackupHandler(req: Request, res: Response) {
     }
   }
 
-  return res.json({ ok: true, checkedAt: now.toISOString(), results });
+  const configuredBirthdayHour = Number.parseInt(process.env.BIRTHDAY_DISPATCH_HOUR_UTC || "9", 10);
+  const configuredBirthdayMinute = Number.parseInt(process.env.BIRTHDAY_DISPATCH_MINUTE_UTC || "0", 10);
+  const birthdayDispatchHour = Number.isInteger(configuredBirthdayHour) && configuredBirthdayHour >= 0 && configuredBirthdayHour <= 23 ? configuredBirthdayHour : 9;
+  const birthdayDispatchMinute = Number.isInteger(configuredBirthdayMinute) && configuredBirthdayMinute >= 0 && configuredBirthdayMinute <= 59 ? configuredBirthdayMinute : 0;
+  const birthdayResult = now.getUTCMinutes() === birthdayDispatchMinute && now.getUTCHours() === birthdayDispatchHour ? await dispatchBirthdayCongratulations(now) : { status: "outside-window", processed: 0, sent: 0 };
+  return res.json({ ok: true, checkedAt: now.toISOString(), results, birthdayResult });
 }

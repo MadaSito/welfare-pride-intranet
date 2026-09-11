@@ -219,7 +219,8 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
   }, [portalNavigation.data?.resources]);
   const canApproveSubmissions = user?.role === "admin" || permissionSummary.data?.permissions.includes("approve_submissions");
   const canViewAudit = user?.role === "admin" || permissionSummary.data?.permissions.includes("view_audit");
-  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...(canApproveSubmissions ? [approvalItem] : []), ...(canViewAudit ? [auditItem] : []), ...(user?.role === "admin" ? adminItems : [])], [canApproveSubmissions, canViewAudit, navigationGroups, user?.role]);
+  const managementItems = useMemo(() => [...(canApproveSubmissions ? [approvalItem] : []), ...(canViewAudit ? [auditItem] : [])], [canApproveSubmissions, canViewAudit]);
+  const allItems = useMemo(() => [...navigationGroups.flatMap(group => group.items), ...managementItems, ...(user?.role === "admin" ? adminItems : [])], [managementItems, navigationGroups, user?.role]);
   const activeItem = allItems.find(item => item.path === "/" ? location === "/" : location.startsWith(item.path));
 
   return (
@@ -274,6 +275,15 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
             </SidebarGroup>
           ))}
 
+          {user?.role !== "admin" && managementItems.length ? (
+            <SidebarGroup className={sidebarLayout.adminGroup}>
+              <div className={sidebarLayout.orangeHeading}><p className={sidebarLayout.orangeHeadingText}>Management</p></div>
+              <SidebarGroupContent className={sidebarLayout.groupContent}><SidebarMenu className={sidebarLayout.menu}>
+                {managementItems.map(item => <SidebarMenuItem key={item.path}><SidebarMenuButton isActive={location.startsWith(item.path)} onClick={() => setLocation(item.path)} tooltip={item.label} className={cn("h-11 rounded-lg border px-3 text-[15px] font-semibold", location.startsWith(item.path) ? "border-[#D58240]/22 bg-[#D58240]/10 text-[#8A4D25] shadow-sm" : "border-transparent bg-transparent text-foreground/85 hover:border-[#D58240]/12 hover:bg-[#D58240]/6 hover:text-[#8A4D25]")}><item.icon className={cn("h-[19px] w-[19px]", location.startsWith(item.path) ? "text-[#D58240]" : "text-muted-foreground")} /><span className="min-w-0 flex-1 truncate">{item.label}</span></SidebarMenuButton></SidebarMenuItem>)}
+              </SidebarMenu></SidebarGroupContent>
+            </SidebarGroup>
+          ) : null}
+
           {user?.role === "admin" ? (
             <SidebarGroup className={sidebarLayout.adminGroup}>
               <div className={sidebarLayout.orangeHeading}>
@@ -281,7 +291,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
               </div>
               <SidebarGroupContent className={sidebarLayout.groupContent}>
                 <SidebarMenu className={sidebarLayout.menu}>
-                  {adminItems.map(item => {
+                  {[...adminItems, ...managementItems].map(item => {
                     const active = location.startsWith(item.path);
                     return (
                       <SidebarMenuItem key={item.path}>
