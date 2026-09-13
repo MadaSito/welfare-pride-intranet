@@ -172,3 +172,5 @@
 - [x] Add a PA Health and Wellness navigation section with one editable page and two calendar pages.
 - [x] Add a Jefferson Health Partners Call Center navigation section with two editable pages.
 - [x] Verify the new sections, page editing, ordering, and calendar views with regression coverage and authenticated acceptance.
+- [x] Change the local login card title to “Welfare Pride Staff Login” and the submit action to “Sign-In”.
+- [x] Verify the revised staff-facing sign-in wording and publish the correction.

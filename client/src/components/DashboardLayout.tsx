@@ -122,14 +122,14 @@ function SignInScreen() {
           <form className="mt-7 space-y-4 rounded-2xl border border-[#5A92C9]/20 bg-[#5A92C9]/5 p-5" onSubmit={submitLocalAccess}>
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#5A92C9] shadow-sm"><KeyRound className="h-4 w-4" aria-hidden="true" /></div>
-              <div><p className="font-semibold text-foreground">{setupRequired ? "Create the owner account" : "Local administrator sign in"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{setupRequired ? "This one-time step unlocks Integration Settings before Entra is available." : "Use the owner credentials created during first-time setup."}</p></div>
+              <div><p className="font-semibold text-foreground">{setupRequired ? "Create the owner account" : "Welfare Pride Staff Login"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{setupRequired ? "This one-time step unlocks Integration Settings before Entra is available." : "Use your Welfare Pride staff credentials."}</p></div>
             </div>
             {setupRequired ? <div className="space-y-2"><Label htmlFor="owner-name">Owner name</Label><Input id="owner-name" autoComplete="name" value={ownerName} onChange={event => setOwnerName(event.target.value)} required /></div> : null}
             <div className="space-y-2"><Label htmlFor="local-email">Email address or username</Label><Input id="local-email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required /></div>
             <div className="space-y-2"><Label htmlFor="local-password">Password</Label><Input id="local-password" type="password" autoComplete={setupRequired ? "new-password" : "current-password"} value={password} onChange={event => setPassword(event.target.value)} minLength={setupRequired ? 12 : 1} required /><p className="text-xs text-muted-foreground">{setupRequired ? "Use 12–128 characters with uppercase, lowercase, number, and symbol." : "Five failed attempts temporarily lock the account."}</p></div>
             {setupRequired ? <p className="rounded-xl border border-[#5A92C9]/20 bg-white/80 p-3 text-xs leading-5 text-muted-foreground">The first submitted owner account becomes the administrator. Setup closes automatically after it is created.</p> : null}
             {localError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError}</div> : null}
-            <Button type="submit" className="h-11 w-full bg-[#D58240] font-semibold text-white hover:bg-[#D58240]/90" disabled={localPending || localStatus.isLoading}>{localPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{setupRequired ? "Create owner account" : "Sign in as administrator"}</Button>
+            <Button type="submit" className="h-11 w-full bg-[#D58240] font-semibold text-white hover:bg-[#D58240]/90" disabled={localPending || localStatus.isLoading}>{localPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}{setupRequired ? "Create owner account" : "Sign-In"}</Button>
           </form>
 
           <div className="my-7 flex items-center gap-4 text-xs text-muted-foreground">
