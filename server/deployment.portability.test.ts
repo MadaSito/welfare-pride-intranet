@@ -76,4 +76,17 @@ describe("standalone deployment package", () => {
     const packageJson = JSON.parse(read("package.json")) as { packageManager?: string };
     expect(packageJson.packageManager).toBe("pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af");
   });
+
+  it("stages a migration-aware Hostinger entry file inside the managed output directory", () => {
+    const packageJson = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
+    const hostingerEntry = read("scripts/hostinger-entry.mjs");
+    const stagingScript = read("scripts/stage-hostinger-entry.mjs");
+    const guide = read("docs/hostinger-deployment.md");
+
+    expect(packageJson.scripts?.build).toContain("stage-hostinger-entry.mjs");
+    expect(hostingerEntry).toContain('"scripts/migrate.mjs"');
+    expect(hostingerEntry).toContain('await import("./index.js")');
+    expect(stagingScript).toContain('"hostinger-entry.js"');
+    expect(guide).toContain("| Entry file | `dist/hostinger-entry.js` |");
+  });
 });

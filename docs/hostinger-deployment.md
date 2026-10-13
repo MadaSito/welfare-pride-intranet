@@ -37,8 +37,11 @@ Use this path only when hPanel offers **Add Website → Deploy Web App**. Hostin
 | Node.js version | 22 |
 | Install command | `corepack enable && pnpm install --frozen-lockfile` |
 | Build command | `pnpm build` |
-| Start command | `pnpm start:migrate` |
+| Output directory | `dist` |
+| Entry file | `dist/hostinger-entry.js` |
 | Application port | Read automatically from `PORT` |
+
+Hostinger's current build-settings page resolves the entry file from the repository root, so enter `dist/hostinger-entry.js`. The project build creates that file; it applies the bundled Drizzle migrations before launching `dist/index.js`. Do not use the generic `index.js` default because there is no server entry point in the repository root.
 
 Add all required environment variables in hPanel before the first start. Use an S3-compatible object store because managed deployments can replace application files during releases. After deployment, configure a Hostinger UTC cron job that invokes the scheduler endpoint at least every five minutes.[5]
 

@@ -175,3 +175,4 @@
 - [x] Change the local login card title to “Welfare Pride Staff Login” and the submit action to “Sign-In”.
 - [x] Verify the revised staff-facing sign-in wording and publish the correction.
 - [x] Connect the authorized GitHub account, synchronize the current standalone source to the selected GitHub repository, and verify the remote commit.
+- [x] Add a managed-Hostinger startup entry point that applies database migrations before the Express server starts, document the verified build configuration, validate the package, and synchronize the corrected release to GitHub.
