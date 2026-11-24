@@ -29,6 +29,7 @@ function createFixture() {
     JSON.stringify({ private: true, type: "module" }) + "\n",
   );
   copyFileSync(wrapperSource, path.join(directory, "dist", "hostinger-entry.js"));
+  copyFileSync(fileURLToPath(new URL("../server.js", import.meta.url)), path.join(directory, "server.js"));
   writeFileSync(
     path.join(directory, "scripts", "migrate.mjs"),
     `import { appendFileSync } from "node:fs";
@@ -61,6 +62,7 @@ record("server:ready");
   return {
     directory,
     entry: path.join(directory, "dist", "hostinger-entry.js"),
+    rootEntry: path.join(directory, "server.js"),
     eventLog: path.join(directory, "events.log"),
   };
 }
@@ -69,9 +71,11 @@ type LaunchMode = "LiteSpeed CommonJS require" | "direct Node launch";
 
 function launch(
   mode: LaunchMode,
-  options: { migrationSetting?: string; migrationExitCode?: number } = {},
+  options: { migrationSetting?: string; migrationExitCode?: number; rootEntry?: boolean; missingBuild?: boolean } = {},
 ) {
   const fixture = createFixture();
+  const entry = options.rootEntry ? fixture.rootEntry : fixture.entry;
+  if (options.missingBuild) rmSync(fixture.entry);
   // Deliberately do not inherit credentials, NODE_OPTIONS, or migration settings.
   const env: NodeJS.ProcessEnv = {
     NODE_ENV: "test",
@@ -83,8 +87,8 @@ function launch(
   }
   const args =
     mode === "LiteSpeed CommonJS require"
-      ? ["--input-type=commonjs", "-e", `require(${JSON.stringify(fixture.entry)});`]
-      : [fixture.entry];
+      ? ["--input-type=commonjs", "-e", `require(${JSON.stringify(entry)});`]
+      : [entry];
   const result = spawnSync(process.execPath, args, {
     // Starting outside the project root also checks wrapper-relative resolution.
     cwd: path.join(fixture.directory, "dist"),
@@ -170,5 +174,41 @@ describe.each<LaunchMode>(["LiteSpeed CommonJS require", "direct Node launch"])(
       },
       10_000,
     );
+  },
+);
+
+describe.each<LaunchMode>(["LiteSpeed CommonJS require", "direct Node launch"])(
+  "Hostinger default server.js compatibility: %s",
+  (mode) => {
+    it("starts through the root entry with migrations completed before server import", () => {
+      const { result, events } = launch(mode, { rootEntry: true });
+      expectSuccessfulLaunch(result);
+      expect(events).toEqual(migratedEvents);
+    }, 10_000);
+
+    it("does not bypass a migration failure through the root entry", () => {
+      const { result, events } = launch(mode, { rootEntry: true, migrationExitCode: 23 });
+      expect(result.error).toBeUndefined();
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(1);
+      expect(events).toEqual(["migration:start", "migration:failed", "migration:exit"]);
+      expect(result.stderr).toMatch(/startup failed/i);
+    }, 10_000);
+
+    it("preserves the explicit migration skip setting through the root entry", () => {
+      const { result, events } = launch(mode, { rootEntry: true, migrationSetting: "false", migrationExitCode: 23 });
+      expectSuccessfulLaunch(result);
+      expect(events).toEqual(["server:import", "server:ready"]);
+    }, 10_000);
+
+    it("exits with a bounded diagnostic if the build output is missing", () => {
+      const { result, events } = launch(mode, { rootEntry: true, missingBuild: true });
+      expect(result.error).toBeUndefined();
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(1);
+      expect(events).toEqual([]);
+      expect(result.stderr).toContain("Run pnpm build");
+      expect(result.stderr.length).toBeLessThan(1_024);
+    }, 10_000);
   },
 );

@@ -38,12 +38,14 @@ Use this path only when hPanel offers **Add Website → Deploy Web App**. Hostin
 | Install command | `corepack enable && pnpm install --frozen-lockfile` |
 | Build command | `pnpm build` |
 | Output directory | Leave empty / `none` when the entry path is relative to the repository root |
-| Entry file | `dist/hostinger-entry.js` |
+| Entry file | `server.js` (Hostinger default) |
 | Application port | Read automatically from `PORT` |
 
-Hostinger's current build-settings page resolves the entry file from the repository root, so enter `dist/hostinger-entry.js`. The project build creates that file; it applies the bundled Drizzle migrations before launching `dist/index.js`. Do not use the generic `index.js` default because there is no server entry point in the repository root.
+Hostinger's Express entry-file field resolves paths from the repository root. The release now includes a root `server.js` and declares it in `package.json`, so Hostinger's default entry setting works without an override. It dynamically loads the built `dist/hostinger-entry.js`, which applies the bundled Drizzle migrations before launching `dist/index.js`. Existing deployments explicitly configured with `dist/hostinger-entry.js` remain supported; there is no need to change that setting on a working installation. Do not select the `server/` source directory as the application root.
 
 LiteSpeed's `lsnode.js` launcher loads this entry using `require()`. The runtime entry must therefore contain no top-level `await` and must not statically import the asynchronous server module graph. Its asynchronous startup function completes migrations and then dynamically imports the server. A direct `node` smoke test alone does not exercise the LiteSpeed loader; the regression suite also tests CommonJS `require()` startup. Top-level `await` remains valid in the build-only staging script and in the separately executed migration script.
+
+If the build completes but reports `Entry file not found` for `server.js`, an older package without the root launcher is still deployed. Upload the current ZIP or update the connected repository. Alternatively, an older release with the corrected built wrapper can use the explicit `dist/hostinger-entry.js` entry setting. Do not change framework, database, or TLS settings to work around a filename mismatch.
 
 If deployment succeeds but the website returns 503, inspect **Website dashboard → Runtime logs**. `ERR_REQUIRE_ASYNC_MODULE` from `lsnode.js` means an older entry wrapper is deployed: update `scripts/hostinger-entry.mjs` from the corrected release and rebuild; do not disable migrations. If the migration then fails, fix the specific database connection or schema error before retrying. Keep existing environment secrets, especially `JWT_SECRET`, unchanged. Do not stop processes for the entire hosting plan, which could interrupt unrelated websites.
 

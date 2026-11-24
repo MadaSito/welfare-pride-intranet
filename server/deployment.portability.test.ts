@@ -16,7 +16,7 @@ function sourceFiles(relativeDirectory: string): string[] {
 
 describe("standalone deployment package", () => {
   it("contains no proprietary managed-platform identifiers in active source or deployment assets", () => {
-    const files = ["package.json", "vite.config.ts", "README.md", ...sourceFiles("client/src"), ...sourceFiles("server").filter(file => !file.endsWith(".test.ts")), ...sourceFiles("shared"), ...sourceFiles("deploy")];
+    const files = ["package.json", "server.js", "vite.config.ts", "README.md", ...sourceFiles("client/src"), ...sourceFiles("server").filter(file => !file.endsWith(".test.ts")), ...sourceFiles("shared"), ...sourceFiles("deploy")];
     const platformName = ["ma", "nus"].join("");
     const prohibited = new RegExp([
       ["built", "in", "forge"].join("_"),
@@ -87,6 +87,14 @@ describe("standalone deployment package", () => {
     expect(hostingerEntry).toContain('"scripts/migrate.mjs"');
     expect(hostingerEntry).toContain('await import("./index.js")');
     expect(stagingScript).toContain('"hostinger-entry.js"');
-    expect(guide).toContain("| Entry file | `dist/hostinger-entry.js` |");
+    expect(guide).toContain("| Entry file | `server.js` (Hostinger default) |");
+    expect(guide).toContain("Existing deployments explicitly configured with `dist/hostinger-entry.js` remain supported");
+  });
+
+  it("includes the root server.js expected by Hostinger's default Express preset", () => {
+    const packageJson = JSON.parse(read("package.json")) as { main?: string };
+    expect(packageJson.main).toBe("server.js");
+    expect(read("server.js")).toContain('import("./dist/hostinger-entry.js")');
+    expect(read("server.js")).not.toContain("await ");
   });
 });
