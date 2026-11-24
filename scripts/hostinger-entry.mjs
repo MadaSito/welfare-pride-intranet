@@ -29,5 +29,16 @@ async function runMigrations() {
   });
 }
 
-await runMigrations();
-await import("./index.js");
+// LiteSpeed's Node launcher loads this entry with require(). Keep its static
+// module graph synchronous; defer migrations and the ESM server to this task.
+async function start() {
+  await runMigrations();
+  await import("./index.js");
+}
+
+start().catch(() => {
+  // The migration child already emits its diagnostic. Never dump credentials
+  // or an arbitrary error object into a public-facing startup message.
+  console.error("[Hostinger] Startup failed. Check the preceding runtime error; the server was not launched.");
+  process.exit(1);
+});

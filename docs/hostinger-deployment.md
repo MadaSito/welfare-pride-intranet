@@ -37,11 +37,15 @@ Use this path only when hPanel offers **Add Website → Deploy Web App**. Hostin
 | Node.js version | 22 |
 | Install command | `corepack enable && pnpm install --frozen-lockfile` |
 | Build command | `pnpm build` |
-| Output directory | `dist` |
+| Output directory | Leave empty / `none` when the entry path is relative to the repository root |
 | Entry file | `dist/hostinger-entry.js` |
 | Application port | Read automatically from `PORT` |
 
 Hostinger's current build-settings page resolves the entry file from the repository root, so enter `dist/hostinger-entry.js`. The project build creates that file; it applies the bundled Drizzle migrations before launching `dist/index.js`. Do not use the generic `index.js` default because there is no server entry point in the repository root.
+
+LiteSpeed's `lsnode.js` launcher loads this entry using `require()`. The runtime entry must therefore contain no top-level `await` and must not statically import the asynchronous server module graph. Its asynchronous startup function completes migrations and then dynamically imports the server. A direct `node` smoke test alone does not exercise the LiteSpeed loader; the regression suite also tests CommonJS `require()` startup. Top-level `await` remains valid in the build-only staging script and in the separately executed migration script.
+
+If deployment succeeds but the website returns 503, inspect **Website dashboard → Runtime logs**. `ERR_REQUIRE_ASYNC_MODULE` from `lsnode.js` means an older entry wrapper is deployed: update `scripts/hostinger-entry.mjs` from the corrected release and rebuild; do not disable migrations. If the migration then fails, fix the specific database connection or schema error before retrying. Keep existing environment secrets, especially `JWT_SECRET`, unchanged. Do not stop processes for the entire hosting plan, which could interrupt unrelated websites.
 
 Add all required environment variables in hPanel before the first start. Use an S3-compatible object store because managed deployments can replace application files during releases. After deployment, configure a Hostinger UTC cron job that invokes the scheduler endpoint at least every five minutes.[5]
 
